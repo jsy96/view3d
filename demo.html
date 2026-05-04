@@ -109,14 +109,20 @@
     </div>
     <div class="conclusion">
         ⚠️ 结论：A和B的三个同轴夹角（X-X', Y-Y', Z-Z'）都是90°，但它们是完全不同的旋转！3个同轴夹角不足以唯一确定旋转。
+        <br><small style="font-weight: normal;">💡 提示：点击坐标系的轴可以突出显示该坐标系</small>
     </div>
     <div id="canvas-container"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer;
+        let scene, camera, renderer, raycaster, mouse;
+        let selectedCoordId = null;
+        let coordinateSystems = {};
+        let originalMaterials = {};
 
         function init() {
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
             const container = document.getElementById('canvas-container');
 
             scene = new THREE.Scene();
@@ -150,48 +156,68 @@
             animate();
         }
 
-        function createAxes(size = 1, colorOffset = 0x000000) {
+        function createAxes(size = 1, colorOffset = 0x000000, coordId) {
             const group = new THREE.Group();
             const colors = [0xff0000 + colorOffset, 0x00ff00 + colorOffset, 0x0000ff + colorOffset];
+            const highlightColors = [0xffaa00, 0xaaff00, 0x00ffff];
             const axisData = [
-                { dir: new THREE.Vector3(1, 0, 0), color: colors[0], label: 'X' },
-                { dir: new THREE.Vector3(0, 1, 0), color: colors[1], label: 'Y' },
-                { dir: new THREE.Vector3(0, 0, 1), color: colors[2], label: 'Z' }
+                { dir: new THREE.Vector3(1, 0, 0), color: colors[0], hcolor: highlightColors[0], label: 'X' },
+                { dir: new THREE.Vector3(0, 1, 0), color: colors[1], hcolor: highlightColors[1], label: 'Y' },
+                { dir: new THREE.Vector3(0, 0, 1), color: colors[2], hcolor: highlightColors[2], label: 'Z' }
             ];
 
-            axisData.forEach(axis => {
+            group.coordId = coordId;
+            originalMaterials[coordId] = { lines: [], arrows: [], origin: null };
+
+            axisData.forEach((axis, idx) => {
                 const geometry = new THREE.BufferGeometry();
                 const points = [new THREE.Vector3(0, 0, 0), axis.dir.clone().multiplyScalar(size)];
                 geometry.setFromPoints(points);
                 const material = new THREE.LineBasicMaterial({ color: axis.color, linewidth: 3 });
                 const line = new THREE.Line(geometry, material);
+                line.coordId = coordId;
+                line.axisIdx = idx;
+                line.highlightColor = axis.hcolor;
+                line.originalColor = axis.color;
                 group.add(line);
+                originalMaterials[coordId].lines.push({ obj: line, color: axis.color });
 
                 const arrowGeom = new THREE.ConeGeometry(0.07, 0.2, 8);
                 const arrowMat = new THREE.MeshLambertMaterial({ color: axis.color });
                 const arrow = new THREE.Mesh(arrowGeom, arrowMat);
                 arrow.position.copy(axis.dir.clone().multiplyScalar(size));
                 arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.dir);
+                arrow.coordId = coordId;
+                arrow.axisIdx = idx;
+                arrow.highlightColor = axis.hcolor;
+                arrow.originalColor = axis.color;
                 group.add(arrow);
+                originalMaterials[coordId].arrows.push({ obj: arrow, color: axis.color });
             });
 
             const sphereGeom = new THREE.SphereGeometry(0.08, 8, 8);
             const sphereMat = new THREE.MeshLambertMaterial({ color: 0x666666 + colorOffset });
             const origin = new THREE.Mesh(sphereGeom, sphereMat);
+            origin.coordId = coordId;
+            origin.originalColor = 0x666666 + colorOffset;
+            origin.highlightColor = 0xffdd00;
             group.add(origin);
+            originalMaterials[coordId].origin = { obj: origin, color: 0x666666 + colorOffset };
 
             return group;
         }
 
         function addWorldCoordinate() {
-            const axes = createAxes(1.5, 0x000000);
+            const axes = createAxes(1.5, 0x000000, 'world');
+            coordinateSystems['world'] = axes;
             scene.add(axes);
 
             addLabel('W', 0, 0.2, 0, 0x888888);
         }
 
         function addCoordinateA() {
-            const axes = createAxes(1.2, 0x660000);
+            const axes = createAxes(1.2, 0x660000, 'A');
+            coordinateSystems['A'] = axes;
 
             const axis = new THREE.Vector3(1, 1, 1).normalize();
             const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI);
@@ -204,7 +230,8 @@
         }
 
         function addCoordinateB() {
-            const axes = createAxes(1.2, 0x000066);
+            const axes = createAxes(1.2, 0x000066, 'B');
+            coordinateSystems['B'] = axes;
 
             const axis = new THREE.Vector3(1, -1, 1).normalize();
             const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI);
@@ -255,8 +282,84 @@
             scene.add(sprite);
         }
 
+        function highlightCoordinate(coordId) {
+            unhighlightAll();
+            selectedCoordId = coordId;
+
+            const matData = originalMaterials[coordId];
+            if (!matData) return;
+
+            matData.lines.forEach(item => {
+                item.obj.material.color.setHex(item.obj.highlightColor);
+                item.obj.material.linewidth = 6;
+            });
+            matData.arrows.forEach(item => {
+                item.obj.material.color.setHex(item.obj.highlightColor);
+            });
+            if (matData.origin) {
+                matData.origin.obj.material.color.setHex(matData.origin.obj.highlightColor);
+            }
+
+            document.querySelectorAll('.coord-info').forEach(el => el.style.border = 'none');
+            if (coordId === 'world') {
+                document.querySelectorAll('.coord-info')[0].style.border = '3px solid #ffdd00';
+            } else if (coordId === 'A') {
+                document.querySelectorAll('.coord-info')[1].style.border = '3px solid #ffdd00';
+            } else if (coordId === 'B') {
+                document.querySelectorAll('.coord-info')[2].style.border = '3px solid #ffdd00';
+            }
+        }
+
+        function unhighlightAll() {
+            Object.keys(originalMaterials).forEach(coordId => {
+                const matData = originalMaterials[coordId];
+                matData.lines.forEach(item => {
+                    item.obj.material.color.setHex(item.obj.originalColor);
+                    item.obj.material.linewidth = 3;
+                });
+                matData.arrows.forEach(item => {
+                    item.obj.material.color.setHex(item.obj.originalColor);
+                });
+                if (matData.origin) {
+                    matData.origin.obj.material.color.setHex(matData.origin.obj.originalColor);
+                }
+            });
+            document.querySelectorAll('.coord-info').forEach(el => el.style.border = 'none');
+            selectedCoordId = null;
+        }
+
+        function onCanvasClick(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            const allAxesObjects = [];
+            Object.values(coordinateSystems).forEach(group => {
+                group.traverse(child => {
+                    if (child.isMesh || child.isLine) {
+                        allAxesObjects.push(child);
+                    }
+                });
+            });
+
+            const intersects = raycaster.intersectObjects(allAxesObjects);
+
+            if (intersects.length > 0) {
+                const clickedObject = intersects[0].object;
+                if (clickedObject.coordId) {
+                    highlightCoordinate(clickedObject.coordId);
+                    return;
+                }
+            }
+
+            unhighlightAll();
+        }
+
         function setupControls() {
             let isDragging = false;
+            let isClick = false;
             let previousMousePosition = { x: 0, y: 0 };
             let spherical = { theta: Math.PI / 4, phi: Math.PI / 3, radius: 6 };
             let target = new THREE.Vector3(0, 0, 0);
@@ -270,11 +373,16 @@
 
             renderer.domElement.addEventListener('mousedown', (e) => {
                 isDragging = true;
+                isClick = true;
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             });
 
             renderer.domElement.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
+                const deltaMove = Math.abs(e.clientX - previousMousePosition.x) + Math.abs(e.clientY - previousMousePosition.y);
+                if (deltaMove > 3) {
+                    isClick = false;
+                }
                 const deltaX = e.clientX - previousMousePosition.x;
                 const deltaY = e.clientY - previousMousePosition.y;
                 spherical.theta -= deltaX * 0.01;
@@ -283,8 +391,18 @@
                 previousMousePosition = { x: e.clientX, y: e.clientY };
             });
 
-            renderer.domElement.addEventListener('mouseup', () => isDragging = false);
-            renderer.domElement.addEventListener('mouseleave', () => isDragging = false);
+            renderer.domElement.addEventListener('mouseup', (e) => {
+                if (isClick) {
+                    onCanvasClick(e);
+                }
+                isDragging = false;
+                isClick = false;
+            });
+
+            renderer.domElement.addEventListener('mouseleave', () => {
+                isDragging = false;
+                isClick = false;
+            });
 
             renderer.domElement.addEventListener('wheel', (e) => {
                 spherical.radius = Math.max(3, Math.min(15, spherical.radius + e.deltaY * 0.01));
