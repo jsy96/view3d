@@ -185,16 +185,18 @@
             ];
 
             group.coordId = coordId;
-            originalMaterials[coordId] = { lines: [] };
+            originalMaterials[coordId] = { cylinders: [] };
 
             axisData.forEach((axis, idx) => {
-                const geometry = new THREE.BufferGeometry();
-                const points = [new THREE.Vector3(0, 0, 0), axis.dir.clone().multiplyScalar(size)];
-                geometry.setFromPoints(points);
-                const material = new THREE.LineBasicMaterial({ color: axis.color, linewidth: 3 });
-                const line = new THREE.Line(geometry, material);
-                group.add(line);
-                originalMaterials[coordId].lines.push({ obj: line });
+                const cylinderPath = new THREE.CatmullRomCurve3([
+                    new THREE.Vector3(0, 0, 0),
+                    axis.dir.clone().multiplyScalar(size)
+                ]);
+                const cylinderGeom = new THREE.TubeGeometry(cylinderPath, 8, 0.015, 8, false);
+                const cylinderMat = new THREE.MeshLambertMaterial({ color: axis.color });
+                const cylinder = new THREE.Mesh(cylinderGeom, cylinderMat);
+                group.add(cylinder);
+                originalMaterials[coordId].cylinders.push({ obj: cylinder, normalRadius: 0.015 });
 
                 const arrowGeom = new THREE.ConeGeometry(0.07, 0.2, 8);
                 const arrowMat = new THREE.MeshLambertMaterial({ color: axis.color });
@@ -265,6 +267,16 @@
         }
 
 
+        function updateTubeRadius(cylinderObj, newRadius) {
+            const size = cylinderObj.geometry.parameters.radialSegments;
+            const tubularSegments = cylinderObj.geometry.parameters.tubularSegments;
+            const path = cylinderObj.geometry.parameters.path;
+
+            const newGeom = new THREE.TubeGeometry(path, tubularSegments, newRadius, size, false);
+            cylinderObj.geometry.dispose();
+            cylinderObj.geometry = newGeom;
+        }
+
         function selectCoordinate(coordId) {
             unhighlightAll();
             selectedCoordId = coordId;
@@ -272,8 +284,8 @@
             const matData = originalMaterials[coordId];
             if (!matData) return;
 
-            matData.lines.forEach(item => {
-                item.obj.material.linewidth = 6;
+            matData.cylinders.forEach(item => {
+                updateTubeRadius(item.obj, 0.05);
             });
 
             document.querySelectorAll('.coord-info').forEach(el => el.style.border = 'none');
@@ -289,8 +301,8 @@
         function unhighlightAll() {
             Object.keys(originalMaterials).forEach(coordId => {
                 const matData = originalMaterials[coordId];
-                matData.lines.forEach(item => {
-                    item.obj.material.linewidth = 3;
+                matData.cylinders.forEach(item => {
+                    updateTubeRadius(item.obj, 0.015);
                 });
             });
             document.querySelectorAll('.coord-info').forEach(el => el.style.border = 'none');
