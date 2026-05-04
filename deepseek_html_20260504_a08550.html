@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无人机线阵CCD相机 - 推扫&摆扫成像3D演示</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --panel-bg: rgba(20, 20, 40, 0.95);
+            --text: #e0e0e0;
+            --accent: #4da6ff;
+            --accent2: #ff6b6b;
+            --accent3: #51cf66;
+            --gold: #ffc107;
+            --border: rgba(255, 255, 255, 0.15);
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --radius: 14px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            cursor: default;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #canvas-container canvas {
+            display: block;
+        }
+
+        #title-bar {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow);
+        }
+
+        #title-bar .logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #2563eb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        #title-bar h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+
+        #title-bar .badge {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #aaa;
+            white-space: nowrap;
+            letter-spacing: 0.4px;
+        }
+
+        #control-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-btn {
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: 2px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-btn:hover {
+            border-color: var(--accent);
+            color: #fff;
+            background: rgba(77, 166, 255, 0.1);
+        }
+
+        .mode-btn.active {
+            border-color: var(--accent);
+            background: rgba(77, 166, 255, 0.2);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(77, 166, 255, 0.25);
+            font-weight: 600;
+        }
+
+        .mode-btn .icon {
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 1.1rem;
+        }
+
+        #speed-slider {
+            width: 100px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .speed-label {
+            color: #aaa;
+            font-size: 0.78rem;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .speed-label span {
+            color: #fff;
+            font-weight: 600;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        #reset-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        #reset-btn:hover {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: var(--accent2);
+            color: #fff;
+        }
+
+        #status-indicator {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .status-item {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 8px 14px;
+            font-size: 0.75rem;
+            color: #ccc;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-dot.scanning {
+            background: var(--accent3);
+            animation: pulse 1.2s ease-in-out infinite;
+            box-shadow: 0 0 10px var(--accent3);
+        }
+
+        .status-dot.idle {
+            background: #888;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.4;
+                transform: scale(1.8);
+            }
+        }
+
+        #legend-tip {
+            position: fixed;
+            top: 120px;
+            left: 20px;
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 0.7rem;
+            color: #aaa;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            line-height: 1.6;
+        }
+
+        #legend-tip .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .dot.scanned {
+            background: #51cf66;
+        }
+
+        .dot.scanline {
+            background: #ff0;
+            box-shadow: 0 0 6px #ff0;
+        }
+
+        .dot.plane {
+            background: rgba(255, 180, 50, 0.7);
+        }
+
+        @media (max-width: 768px) {
+            #title-bar {
+                padding: 8px 16px;
+                gap: 8px;
+                border-radius: 24px;
+            }
+            #title-bar h1 {
+                font-size: 0.85rem;
+            }
+            #title-bar .badge {
+                display: none;
+            }
+            #control-panel {
+                padding: 12px 14px;
+                gap: 10px;
+                border-radius: 12px;
+                bottom: 10px;
+            }
+            .mode-btn {
+                padding: 8px 14px;
+                font-size: 0.78rem;
+                border-radius: 20px;
+            }
+            #speed-slider {
+                width: 70px;
+            }
+            #status-indicator {
+                top: 100px;
+                right: 8px;
+                gap: 5px;
+            }
+            .status-item {
+                padding: 6px 10px;
+                font-size: 0.7rem;
+            }
+            #legend-tip {
+                top: 100px;
+                left: 8px;
+                padding: 8px 10px;
+                font-size: 0.65rem;
+            }
+        }
+        @media (max-width: 480px) {
+            #control-panel {
+                gap: 6px;
+                padding: 10px;
+            }
+            .mode-btn {
+                padding: 6px 10px;
+                font-size: 0.7rem;
+                border-radius: 16px;
+            }
+            #speed-slider {
+                width: 50px;
+            }
+            #title-bar h1 {
+                font-size: 0.75rem;
+            }
+            #legend-tip {
+                display: none;
+            }
+            #status-indicator {
+                top: 90px;
+                right: 4px;
+            }
+            .status-item {
+                padding: 4px 8px;
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="title-bar">
+        <div class="logo">🛸</div>
+        <h1>线阵CCD成像演示</h1>
+        <span class="badge">3D Dynamic</span>
+    </div>
+
+    <div id="legend-tip">
+        <div><span class="dot scanned"></span> 已扫描区域</div>
+        <div><span class="dot scanline"></span> 当前扫描线</div>
+        <div><span class="dot plane"></span> 视野扇面</div>
+        <div style="margin-top:4px;color:#888;">🖱 拖拽旋转 · 滚轮缩放</div>
+    </div>
+
+    <div id="status-indicator">
+        <div class="status-item">
+            <span class="status-dot scanning" id="status-dot"></span>
+            <span id="status-text">推扫成像中</span>
+        </div>
+        <div class="status-item" style="font-size:0.7rem;">
+            📐 扫描角: <span id="angle-display" style="color:#ffc107;font-weight:600;">0°</span>
+        </div>
+    </div>
+
+    <div id="control-panel">
+        <button class="mode-btn active" id="btn-push" onclick="setMode('push')">
+            <span class="icon">✈️</span>推扫成像
+        </button>
+        <button class="mode-btn" id="btn-sweep" onclick="setMode('sweep')">
+            <span class="icon">🔄</span>摆扫成像
+        </button>
+        <div class="speed-label">
+            速度
+            <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="updateSpeed(this.value)">
+            <span id="speed-val">1×</span>
+        </div>
+        <button id="reset-btn" onclick="resetScan()">🔄 重置扫描</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ==================== DOM 引用 ====================
+        const container = document.getElementById('canvas-container');
+        const btnPush = document.getElementById('btn-push');
+        const btnSweep = document.getElementById('btn-sweep');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedVal = document.getElementById('speed-val');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const angleDisplay = document.getElementById('angle-display');
+
+        // ==================== 场景初始化 ====================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#1a1a2e');
+        scene.fog = new THREE.Fog('#1a1a2e', 30, 80);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 120);
+        camera.position.set(9, 7, 11);
+        camera.lookAt(0, 0, 0);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.5, 0);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 4;
+        controls.maxDistance = 30;
+        controls.maxPolarAngle = Math.PI * 0.48;
+        controls.minPolarAngle = 0.2;
+        controls.update();
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.15;
+
+        // ==================== 光照 ====================
+        const ambientLight = new THREE.AmbientLight('#c8d6ff', 2.5);
+        scene.add(ambientLight);
+        const hemiLight = new THREE.HemisphereLight('#ffffff', '#445566', 1.6);
+        scene.add(hemiLight);
+        const sunLight = new THREE.DirectionalLight('#fffef0', 8);
+        sunLight.position.set(15, 20, 5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 60;
+        sunLight.shadow.camera.left = -20;
+        sunLight.shadow.camera.right = 20;
+        sunLight.shadow.camera.top = 20;
+        sunLight.shadow.camera.bottom = -20;
+        sunLight.shadow.bias = -0.0003;
+        sunLight.shadow.normalBias = 0.01;
+        scene.add(sunLight);
+
+        // ==================== 地面 ====================
+        const GROUND_SIZE = 20;
+        const GROUND_HALF = GROUND_SIZE / 2;
+        const groundTexCanvas = document.createElement('canvas');
+        groundTexCanvas.width = 1024;
+        groundTexCanvas.height = 1024;
+        const gctx = groundTexCanvas.getContext('2d');
+
+        function generateGroundImage(ctx, w, h) {
+            const baseGradient = ctx.createRadialGradient(w * 0.3, h * 0.4, w * 0.05, w * 0.5, h * 0.5, w * 0.75);
+            baseGradient.addColorStop(0, '#7a9a5c');
+            baseGradient.addColorStop(0.3, '#6d8b4e');
+            baseGradient.addColorStop(0.6, '#5c7a3f');
+            baseGradient.addColorStop(0.85, '#4a6530');
+            baseGradient.addColorStop(1, '#3d5528');
+            ctx.fillStyle = baseGradient;
+            ctx.fillRect(0, 0, w, h);
+
+            const rng = mulberry32(42);
+            for (let i = 0; i < 200; i++) {
+                const x = rng() * w;
+                const y = rng() * h;
+                const rx = 15 + rng() * 80;
+                const ry = 10 + rng() * 55;
+                const shade = 100 + rng() * 120;
+                const g = 130 + rng() * 80;
+                ctx.fillStyle = `rgba(${30 + rng()*40}, ${g}, ${20 + rng()*30}, 0.5)`;
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, rng() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = '#b8b0a0';
+            ctx.lineWidth = 14;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(50, 200);
+            ctx.bezierCurveTo(300, 180, 500, 350, 750, 300);
+            ctx.stroke();
+            ctx.strokeStyle = '#c8c0b0';
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.moveTo(50, 200);
+            ctx.bezierCurveTo(300, 180, 500, 350, 750, 300);
+            ctx.stroke();
+            ctx.strokeStyle = '#e8e0d0';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([30, 25]);
+            ctx.beginPath();
+            ctx.moveTo(50, 200);
+            ctx.bezierCurveTo(300, 180, 500, 350, 750, 300);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.strokeStyle = '#b0a898';
+            ctx.lineWidth = 12;
+            ctx.beginPath();
+            ctx.moveTo(150, 620);
+            ctx.bezierCurveTo(350, 640, 600, 580, 900, 600);
+            ctx.stroke();
+            ctx.strokeStyle = '#c5bdb0';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(150, 620);
+            ctx.bezierCurveTo(350, 640, 600, 580, 900, 600);
+            ctx.stroke();
+
+            for (let i = 0; i < 30; i++) {
+                const bx = 60 + rng() * (w - 120);
+                const by = 60 + rng() * (h - 120);
+                const bw = 18 + rng() * 40;
+                const bh = 14 + rng() * 35;
+                ctx.fillStyle = `rgba(${180 + rng()*60}, ${160 + rng()*50}, ${140 + rng()*40}, 0.8)`;
+                ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = `rgba(${200 + rng()*50}, ${180 + rng()*40}, ${160 + rng()*35}, 0.6)`;
+                ctx.fillRect(bx + 2, by + 2, bw - 4, bh - 4);
+            }
+
+            for (let i = 0; i < 5; i++) {
+                const wx = 100 + rng() * (w - 200);
+                const wy = 100 + rng() * (h - 200);
+                const wr = 25 + rng() * 60;
+                const wg = ctx.createRadialGradient(wx, wy, wr * 0.2, wx, wy, wr);
+                wg.addColorStop(0, 'rgba(60,140,200,0.7)');
+                wg.addColorStop(0.5, 'rgba(50,120,180,0.5)');
+                wg.addColorStop(1, 'rgba(40,90,140,0.1)');
+                ctx.fillStyle = wg;
+                ctx.beginPath();
+                ctx.ellipse(wx, wy, wr, wr * 0.6, rng() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            for (let i = 0; i < 15; i++) {
+                const fx = rng() * w;
+                const fy = rng() * h;
+                ctx.strokeStyle = `rgba(${100 + rng()*80}, ${140 + rng()*60}, ${60 + rng()*50}, 0.4)`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                const fw = 40 + rng() * 100;
+                const fh = 20 + rng() * 60;
+                for (let j = 0; j < 8; j++) {
+                    ctx.moveTo(fx, fy + j * (fh / 8));
+                    ctx.lineTo(fx + fw, fy + j * (fh / 8));
+                }
+                ctx.stroke();
+            }
+        }
+
+        function mulberry32(a) {
+            return function () {
+                a |= 0;
+                a = a + 0x6D2B79F5 | 0;
+                let t = Math.imul(a ^ a >>> 15, 1 | a);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        generateGroundImage(gctx, groundTexCanvas.width, groundTexCanvas.height);
+        const groundImageData = gctx.getImageData(0, 0, groundTexCanvas.width, groundTexCanvas.height);
+
+        function applyFullMask(ctx, w, h) {
+            ctx.putImageData(groundImageData, 0, 0);
+            ctx.fillStyle = 'rgba(30,32,40,0.82)';
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = 'rgba(40,42,50,0.3)';
+            for (let i = 0; i < w; i += 8) {
+                for (let j = 0; j < h; j += 8) {
+                    if ((i + j) % 16 === 0) ctx.fillRect(i, j, 4, 4);
+                }
+            }
+        }
+        applyFullMask(gctx, groundTexCanvas.width, groundTexCanvas.height);
+
+        const groundTexture = new THREE.CanvasTexture(groundTexCanvas);
+        groundTexture.wrapS = THREE.ClampToEdgeWrapping;
+        groundTexture.wrapT = THREE.ClampToEdgeWrapping;
+        groundTexture.colorSpace = THREE.SRGBColorSpace;
+        groundTexture.anisotropy = 4;
+        groundTexture.magFilter = THREE.LinearFilter;
+        groundTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        groundTexture.generateMipmaps = true;
+
+        const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
+        const groundMat = new THREE.MeshStandardMaterial({
+            map: groundTexture,
+            roughness: 0.55,
+            metalness: 0.05,
+            color: '#ffffff',
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        ground.renderOrder = 1;
+        scene.add(ground);
+
+        const gridHelper = new THREE.PolarGridHelper(GROUND_HALF, 40, 20, 64, '#444444', '#333333');
+        gridHelper.position.y = 0.005;
+        gridHelper.renderOrder = 2;
+        scene.add(gridHelper);
+
+        // ==================== 扫描线3D指示器 ====================
+        const scanLineGeo = new THREE.BufferGeometry();
+        const scanLinePositions = new Float32Array(2 * 3);
+        scanLineGeo.setAttribute('position', new THREE.BufferAttribute(scanLinePositions, 3));
+        const scanLineMat = new THREE.LineBasicMaterial({
+            color: '#ffff00',
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.9,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const scanLineMesh = new THREE.Line(scanLineGeo, scanLineMat);
+        scanLineMesh.renderOrder = 5;
+        scanLineMesh.position.y = 0.015;
+        scene.add(scanLineMesh);
+
+        const scanGlowGeo = new THREE.PlaneGeometry(0.08, 1);
+        const scanGlowMat = new THREE.MeshBasicMaterial({
+            color: '#ffff88',
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const scanGlowPlane = new THREE.Mesh(scanGlowGeo, scanGlowMat);
+        scanGlowPlane.rotation.x = -Math.PI / 2;
+        scanGlowPlane.position.y = 0.018;
+        scanGlowPlane.renderOrder = 4;
+        scanGlowPlane.visible = true;
+        scene.add(scanGlowPlane);
+
+        // 扇面
+        const fanPlaneGeo = new THREE.PlaneGeometry(1, 1);
+        const fanPlaneMat = new THREE.MeshBasicMaterial({
+            color: '#ffb832',
+            transparent: true,
+            opacity: 0.25,
+            side: THREE.DoubleSide,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const fanPlane = new THREE.Mesh(fanPlaneGeo, fanPlaneMat);
+        fanPlane.renderOrder = 3;
+        fanPlane.visible = true;
+        scene.add(fanPlane);
+
+        const fanEdgeGeo1 = new THREE.BufferGeometry();
+        const fanEdgeGeo2 = new THREE.BufferGeometry();
+        const fanEdgePos1 = new Float32Array(2 * 3);
+        const fanEdgePos2 = new Float32Array(2 * 3);
+        fanEdgeGeo1.setAttribute('position', new THREE.BufferAttribute(fanEdgePos1, 3));
+        fanEdgeGeo2.setAttribute('position', new THREE.BufferAttribute(fanEdgePos2, 3));
+        const fanEdgeMat = new THREE.LineBasicMaterial({
+            color: '#ffb832',
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.6,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const fanEdge1 = new THREE.Line(fanEdgeGeo1, fanEdgeMat);
+        const fanEdge2 = new THREE.Line(fanEdgeGeo2, fanEdgeMat);
+        fanEdge1.renderOrder = 3;
+        fanEdge2.renderOrder = 3;
+        scene.add(fanEdge1);
+        scene.add(fanEdge2);
+
+        // ==================== 无人机模型 ====================
+        const droneGroup = new THREE.Group();
+        scene.add(droneGroup);
+
+        const fuselageGeo = new THREE.CylinderGeometry(0.22, 0.2, 1.8, 12, 4);
+        fuselageGeo.rotateX(Math.PI / 2);
+        const fuselageMat = new THREE.MeshStandardMaterial({ color: '#e8e8ec', roughness: 0.3, metalness: 0.4 });
+        const fuselage = new THREE.Mesh(fuselageGeo, fuselageMat);
+        fuselage.castShadow = true;
+        fuselage.receiveShadow = true;
+        droneGroup.add(fuselage);
+
+        const noseGeo = new THREE.SphereGeometry(0.2, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6);
+        const noseMat = new THREE.MeshStandardMaterial({ color: '#d0d0d8', roughness: 0.25, metalness: 0.5 });
+        const nose = new THREE.Mesh(noseGeo, noseMat);
+        nose.rotation.x = -Math.PI / 2;
+        nose.position.z = 0.85;
+        nose.castShadow = true;
+        droneGroup.add(nose);
+
+        const wingGeo = new THREE.BoxGeometry(3.2, 0.06, 0.55);
+        const wingMat = new THREE.MeshStandardMaterial({ color: '#f0f0f4', roughness: 0.35, metalness: 0.3 });
+        const wing = new THREE.Mesh(wingGeo, wingMat);
+        wing.position.set(0, -0.05, -0.1);
+        wing.castShadow = true;
+        wing.receiveShadow = true;
+        droneGroup.add(wing);
+
+        const tailHGeo = new THREE.BoxGeometry(1.0, 0.04, 0.3);
+        const tailH = new THREE.Mesh(tailHGeo, wingMat);
+        tailH.position.set(0, 0.02, -0.75);
+        tailH.castShadow = true;
+        droneGroup.add(tailH);
+
+        const tailVGeo = new THREE.BoxGeometry(0.04, 0.35, 0.3);
+        const tailV = new THREE.Mesh(tailVGeo, fuselageMat);
+        tailV.position.set(0, 0.16, -0.75);
+        tailV.castShadow = true;
+        droneGroup.add(tailV);
+
+        const engineGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.4, 10);
+        engineGeo.rotateX(Math.PI / 2);
+        const engineMat = new THREE.MeshStandardMaterial({ color: '#555560', roughness: 0.4, metalness: 0.7 });
+        const engineL = new THREE.Mesh(engineGeo, engineMat);
+        engineL.position.set(0.55, -0.04, -0.15);
+        engineL.castShadow = true;
+        droneGroup.add(engineL);
+        const engineR = new THREE.Mesh(engineGeo, engineMat);
+        engineR.position.set(-0.55, -0.04, -0.15);
+        engineR.castShadow = true;
+        droneGroup.add(engineR);
+
+        const propGeo = new THREE.BoxGeometry(0.02, 0.35, 0.06);
+        const propMat = new THREE.MeshStandardMaterial({ color: '#333338', roughness: 0.6, metalness: 0.8 });
+        const propL = new THREE.Mesh(propGeo, propMat);
+        propL.position.set(0.55, -0.04, 0.08);
+        droneGroup.add(propL);
+        const propR = new THREE.Mesh(propGeo, propMat);
+        propR.position.set(-0.55, -0.04, 0.08);
+        droneGroup.add(propR);
+
+        // ==================== 吊舱结构 ====================
+        const podMountY = -0.35;
+
+        const pitchGroup = new THREE.Group();
+        pitchGroup.position.set(0, podMountY, 0);
+        droneGroup.add(pitchGroup);
+
+        const rollGroup = new THREE.Group();
+        pitchGroup.add(rollGroup);
+
+        const rodGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+        const rodMat = new THREE.MeshStandardMaterial({ color: '#666670', roughness: 0.35, metalness: 0.7 });
+        const rod = new THREE.Mesh(rodGeo, rodMat);
+        rod.position.y = -0.25;
+        rod.castShadow = true;
+        rollGroup.add(rod);
+
+        const podGeo = new THREE.CylinderGeometry(0.16, 0.17, 0.45, 16);
+        const podMat = new THREE.MeshStandardMaterial({ color: '#3a3a44', roughness: 0.3, metalness: 0.6 });
+        const pod = new THREE.Mesh(podGeo, podMat);
+        pod.position.y = -0.55;
+        pod.castShadow = true;
+        pod.receiveShadow = true;
+        rollGroup.add(pod);
+
+        const ccdGeo = new THREE.SphereGeometry(0.05, 8, 8);
+        const ccdMat = new THREE.MeshStandardMaterial({
+            color: '#ff3333',
+            roughness: 0.2,
+            metalness: 0.3,
+            emissive: '#ff0000',
+            emissiveIntensity: 0.8,
+        });
+        const ccdIndicator = new THREE.Mesh(ccdGeo, ccdMat);
+        ccdIndicator.position.y = -0.78;
+        rollGroup.add(ccdIndicator);
+
+        const lensRingGeo = new THREE.TorusGeometry(0.07, 0.02, 8, 16);
+        const lensRingMat = new THREE.MeshStandardMaterial({ color: '#222228', roughness: 0.2, metalness: 0.9 });
+        const lensRing = new THREE.Mesh(lensRingGeo, lensRingMat);
+        lensRing.position.y = -0.76;
+        lensRing.rotation.x = Math.PI / 2;
+        rollGroup.add(lensRing);
+
+        const podAssembly = { pitchGroup, rollGroup, pod, ccdIndicator, lensRing, rod };
+
+        // ==================== 投影标记 ====================
+        const projectionMarkerGeo = new THREE.RingGeometry(0.15, 0.22, 32);
+        const projectionMarkerMat = new THREE.MeshBasicMaterial({
+            color: '#ffffff',
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.5,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const projectionMarker = new THREE.Mesh(projectionMarkerGeo, projectionMarkerMat);
+        projectionMarker.rotation.x = -Math.PI / 2;
+        projectionMarker.position.y = 0.008;
+        projectionMarker.renderOrder = 6;
+        projectionMarker.visible = true;
+        scene.add(projectionMarker);
+
+        // ==================== 状态变量 ====================
+        const SCAN_WIDTH = 8;
+        const SCAN_HALF = SCAN_WIDTH / 2;
+        const DRONE_FLY_HEIGHT = 5.5;
+
+        let currentMode = 'push';
+        let scanSpeed = 1.0;
+        let droneX = -7;
+        let droneFlyDirection = 1;
+        let sweepAngle = 0;
+        let sweepDirection = 1;
+        const SWEEP_ANGLE_MAX = Math.PI / 5.5;
+
+        let scannedPushRegions = [];
+        let scannedSweepAngles = [];
+        let lastScanUpdateFrame = 0;
+        const SCAN_UPDATE_INTERVAL = 3;
+
+        // ==================== 地面纹理更新 ====================
+        function worldToCanvas(wx, wz) {
+            return {
+                x: (wx + GROUND_HALF) / GROUND_SIZE * groundTexCanvas.width,
+                y: (wz + GROUND_HALF) / GROUND_SIZE * groundTexCanvas.height
+            };
+        }
+
+        function eraseMaskOnLine(ctx, x1, z1, x2, z2, lineWidth) {
+            const p1 = worldToCanvas(x1, z1);
+            const p2 = worldToCanvas(x2, z2);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.strokeStyle = 'rgba(255,255,255,1)';
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function eraseMaskRect(ctx, xMin, zMin, xMax, zMax) {
+            const pMin = worldToCanvas(xMin, zMin);
+            const pMax = worldToCanvas(xMax, zMax);
+            const cx = Math.min(pMin.x, pMax.x);
+            const cy = Math.min(pMin.y, pMax.y);
+            const cw = Math.abs(pMax.x - pMin.x);
+            const ch = Math.abs(pMax.y - pMax.y);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(255,255,255,1)';
+            ctx.fillRect(cx, cy, Math.max(cw, 1), Math.max(ch, 1));
+            ctx.restore();
+        }
+
+        function updateGroundTextureFull() {
+            gctx.putImageData(groundImageData, 0, 0);
+            gctx.fillStyle = 'rgba(30,32,40,0.82)';
+            gctx.fillRect(0, 0, groundTexCanvas.width, groundTexCanvas.height);
+
+            for (const region of scannedPushRegions) {
+                eraseMaskRect(gctx, region.xMin, region.zMin, region.xMax, region.zMax);
+            }
+            if (scannedSweepAngles.length > 0) {
+                drawAllSweepScanned(gctx);
+            }
+            groundTexture.needsUpdate = true;
+            groundTexture.generateMipmaps = true;
+        }
+
+        function drawAllSweepScanned(ctx) {
+            const podY = DRONE_FLY_HEIGHT + podMountY - 0.78; // 吊舱底部高度
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(255,255,255,1)';
+            for (const range of scannedSweepAngles) {
+                const a1 = range.angleMin;
+                const a2 = range.angleMax;
+                const z1 = podY * Math.tan(a1);
+                const z2 = podY * Math.tan(a2);
+                const zMin = Math.min(z1, z2);
+                const zMax = Math.max(z1, z2);
+                const avgAngle = (a1 + a2) / 2;
+                const halfLen = SCAN_HALF / Math.cos(avgAngle);
+                const xMinWorld = -halfLen;
+                const xMaxWorld = halfLen;
+                const pMin = worldToCanvas(xMinWorld, zMin);
+                const pMax = worldToCanvas(xMaxWorld, zMax);
+                const cx = Math.min(pMin.x, pMax.x);
+                const cy = Math.min(pMin.y, pMax.y);
+                const cw = Math.abs(pMax.x - pMin.x);
+                const ch = Math.abs(pMax.y - pMin.y);
+                ctx.fillRect(cx, cy, Math.max(cw, 1), Math.max(ch, 1));
+            }
+            ctx.restore();
+        }
+
+        function recordPushScan(xCenter, zMin, zMax) {
+            const halfW = 0.04;
+            const region = { xMin: xCenter - halfW, xMax: xCenter + halfW, zMin, zMax };
+            let merged = false;
+            for (let r of scannedPushRegions) {
+                if (Math.abs(r.zMin - zMin) < 0.1 && Math.abs(r.zMax - zMax) < 0.1) {
+                    if (xCenter >= r.xMin - 0.1 && xCenter <= r.xMax + 0.1) {
+                        r.xMin = Math.min(r.xMin, region.xMin);
+                        r.xMax = Math.max(r.xMax, region.xMax);
+                        merged = true;
+                        break;
+                    }
+                }
+            }
+            if (!merged) scannedPushRegions.push(region);
+            if (scannedPushRegions.length > 500) scannedPushRegions = scannedPushRegions.slice(-400);
+        }
+
+        function recordSweepScan(angle) {
+            const halfA = 0.006;
+            const range = { angleMin: angle - halfA, angleMax: angle + halfA };
+            let merged = false;
+            for (let r of scannedSweepAngles) {
+                if (angle >= r.angleMin - 0.008 && angle <= r.angleMax + 0.008) {
+                    r.angleMin = Math.min(r.angleMin, range.angleMin);
+                    r.angleMax = Math.max(r.angleMax, range.angleMax);
+                    merged = true;
+                    break;
+                }
+            }
+            if (!merged) scannedSweepAngles.push(range);
+            if (scannedSweepAngles.length > 300) scannedSweepAngles = scannedSweepAngles.slice(-250);
+        }
+
+        // ==================== 更新扫描线3D位置 ====================
+        function updateScanLineVisual(x1, z1, x2, z2) {
+            scanLinePositions[0] = x1;
+            scanLinePositions[1] = 0.016;
+            scanLinePositions[2] = z1;
+            scanLinePositions[3] = x2;
+            scanLinePositions[4] = 0.016;
+            scanLinePositions[5] = z2;
+            scanLineMesh.geometry.attributes.position.needsUpdate = true;
+
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const length = Math.sqrt(dx * dx + dz * dz);
+            const midX = (x1 + x2) / 2;
+            const midZ = (z1 + z2) / 2;
+            const angle = Math.atan2(dx, dz);
+            scanGlowPlane.position.set(midX, 0.018, midZ);
+            scanGlowPlane.rotation.y = angle;
+            scanGlowPlane.scale.set(1, 1, length);
+            scanGlowPlane.visible = true;
+        }
+
+        function updateFanPlane(podWorldPos, x1, z1, x2, z2) {
+            const groundMidX = (x1 + x2) / 2;
+            const groundMidZ = (z1 + z2) / 2;
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const scanLength = Math.sqrt(dx * dx + dz * dz);
+            const fanHeight = Math.abs(podWorldPos.y);
+
+            fanPlane.position.set(
+                (podWorldPos.x + groundMidX) / 2,
+                podWorldPos.y / 2,
+                (podWorldPos.z + groundMidZ) / 2
+            );
+            fanPlane.scale.set(fanHeight, scanLength, 1);
+
+            const scanDirX = dx / scanLength;
+            const scanDirZ = dz / scanLength;
+            const normalX = -scanDirZ;
+            const normalZ = scanDirX;
+            const normalVec = new THREE.Vector3(normalX, 0, normalZ).normalize();
+            const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normalVec);
+            fanPlane.setRotationFromQuaternion(quaternion);
+
+            fanEdgePos1[0] = podWorldPos.x;
+            fanEdgePos1[1] = podWorldPos.y;
+            fanEdgePos1[2] = podWorldPos.z;
+            fanEdgePos1[3] = x1;
+            fanEdgePos1[4] = 0.012;
+            fanEdgePos1[5] = z1;
+            fanEdge1.geometry.attributes.position.needsUpdate = true;
+
+            fanEdgePos2[0] = podWorldPos.x;
+            fanEdgePos2[1] = podWorldPos.y;
+            fanEdgePos2[2] = podWorldPos.z;
+            fanEdgePos2[3] = x2;
+            fanEdgePos2[4] = 0.012;
+            fanEdgePos2[5] = z2;
+            fanEdge2.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function getPodWorldPos() {
+            const localPos = new THREE.Vector3(0, -0.78, 0);
+            rollGroup.localToWorld(localPos);
+            return localPos;
+        }
+
+        // ==================== 模式切换 ====================
+        function setMode(mode) {
+            if (currentMode === mode) return;
+            currentMode = mode;
+            btnPush.classList.toggle('active', mode === 'push');
+            btnSweep.classList.toggle('active', mode === 'sweep');
+
+            if (mode === 'push') {
+                statusText.textContent = '推扫成像中';
+                statusDot.className = 'status-dot scanning';
+                if (droneX > GROUND_HALF - 1 || droneX < -GROUND_HALF + 1) {
+                    droneX = -GROUND_HALF + 2;
+                    droneFlyDirection = 1;
+                }
+                pitchGroup.rotation.z = 0;
+                rollGroup.rotation.x = 0;
+            } else {
+                statusText.textContent = '摆扫成像中';
+                statusDot.className = 'status-dot scanning';
+                droneX = 0;
+                droneFlyDirection = 0;
+                sweepAngle = 0;
+                sweepDirection = 1;
+                pitchGroup.rotation.z = 0;
+                rollGroup.rotation.x = 0;
+            }
+            updateGroundTextureFull();
+        }
+
+        function updateSpeed(val) {
+            scanSpeed = parseFloat(val);
+            speedVal.textContent = val + '×';
+        }
+
+        function resetScan() {
+            scannedPushRegions = [];
+            scannedSweepAngles = [];
+            droneX = currentMode === 'push' ? -GROUND_HALF + 2 : 0;
+            droneFlyDirection = currentMode === 'push' ? 1 : 0;
+            sweepAngle = 0;
+            sweepDirection = 1;
+            pitchGroup.rotation.z = 0;
+            rollGroup.rotation.x = 0;
+            applyFullMask(gctx, groundTexCanvas.width, groundTexCanvas.height);
+            groundTexture.needsUpdate = true;
+            groundTexture.generateMipmaps = true;
+            scanGlowPlane.visible = false;
+            scanLinePositions.fill(0);
+            scanLineMesh.geometry.attributes.position.needsUpdate = true;
+            fanPlane.visible = false;
+            fanEdgePos1.fill(0);
+            fanEdgePos2.fill(0);
+            fanEdge1.geometry.attributes.position.needsUpdate = true;
+            fanEdge2.geometry.attributes.position.needsUpdate = true;
+            angleDisplay.textContent = '0°';
+        }
+
+        // ==================== 动画循环 ====================
+        const clock = new THREE.Clock();
+        let frameCount = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+            frameCount++;
+            controls.update();
+
+            droneGroup.position.y = DRONE_FLY_HEIGHT;
+
+            if (currentMode === 'push') {
+                const flySpeed = 2.5 * scanSpeed;
+                droneX += flySpeed * dt * droneFlyDirection;
+                if (droneX > GROUND_HALF - 1.5) { droneX = GROUND_HALF - 1.5;
+                    droneFlyDirection = -1; } else if (droneX < -GROUND_HALF + 1.5) { droneX = -GROUND_HALF + 1.5;
+                    droneFlyDirection = 1; }
+                droneGroup.position.x = droneX;
+                droneGroup.position.z = 0;
+                droneGroup.rotation.set(0, droneFlyDirection < 0 ? Math.PI : 0, 0);
+                pitchGroup.rotation.z = 0;
+                rollGroup.rotation.x = 0;
+
+                const scanX = droneX;
+                const scanZ1 = -SCAN_HALF;
+                const scanZ2 = SCAN_HALF;
+                updateScanLineVisual(scanX, scanZ1, scanX, scanZ2);
+                const podPos = getPodWorldPos();
+                updateFanPlane(podPos, scanX, scanZ1, scanX, scanZ2);
+                fanPlane.visible = true;
+                fanEdge1.visible = true;
+                fanEdge2.visible = true;
+                projectionMarker.position.set(scanX, 0.008, 0);
+                projectionMarker.visible = true;
+
+                if (frameCount - lastScanUpdateFrame >= SCAN_UPDATE_INTERVAL) {
+                    recordPushScan(scanX, scanZ1, scanZ2);
+                    lastScanUpdateFrame = frameCount;
+                    eraseMaskOnLine(gctx, scanX, scanZ1, scanX, scanZ2, 4);
+                    groundTexture.needsUpdate = true;
+                }
+                angleDisplay.textContent = '0°（垂直）';
+            } else {
+                // 摆扫模式：线阵平行于飞行方向(X轴)，绕飞行方向轴(X轴)左右侧摆
+                droneX = 0;
+                droneGroup.position.set(0, DRONE_FLY_HEIGHT, 0);
+                droneGroup.rotation.set(0, 0, 0);
+
+                const sweepSpeed = 0.025 * scanSpeed;
+                sweepAngle += sweepSpeed * dt * sweepDirection;
+                if (sweepAngle > SWEEP_ANGLE_MAX) { sweepAngle = SWEEP_ANGLE_MAX;
+                    sweepDirection = -1; } else if (sweepAngle < -SWEEP_ANGLE_MAX) { sweepAngle = -SWEEP_ANGLE_MAX;
+                    sweepDirection = 1; }
+
+                rollGroup.rotation.x = sweepAngle;
+                pitchGroup.rotation.z = 0;
+
+                const podPos = getPodWorldPos();
+                const podY = Math.abs(podPos.y);
+                // 绕X轴旋转，光轴在YZ平面内偏移，地面交点Z偏移
+                const groundCenterZ = podPos.z + podY * Math.tan(sweepAngle);
+                const groundCenterX = podPos.x; // X不变
+                const halfLen = SCAN_HALF / Math.cos(sweepAngle);
+                const scanX1 = groundCenterX - halfLen;
+                const scanX2 = groundCenterX + halfLen;
+                const scanZ1 = groundCenterZ;
+                const scanZ2 = groundCenterZ;
+
+                const clampedX1 = Math.max(-GROUND_HALF - 1, Math.min(GROUND_HALF + 1, scanX1));
+                const clampedX2 = Math.max(-GROUND_HALF - 1, Math.min(GROUND_HALF + 1, scanX2));
+                const clampedZ = Math.max(-GROUND_HALF - 1, Math.min(GROUND_HALF + 1, scanZ1));
+
+                updateScanLineVisual(clampedX1, clampedZ, clampedX2, clampedZ);
+                updateFanPlane(podPos, clampedX1, clampedZ, clampedX2, clampedZ);
+                fanPlane.visible = true;
+                fanEdge1.visible = true;
+                fanEdge2.visible = true;
+
+                projectionMarker.position.set(groundCenterX, 0.008, groundCenterZ);
+                projectionMarker.visible = true;
+
+                if (frameCount - lastScanUpdateFrame >= SCAN_UPDATE_INTERVAL) {
+                    recordSweepScan(sweepAngle);
+                    lastScanUpdateFrame = frameCount;
+                    eraseMaskOnLine(gctx, clampedX1, clampedZ, clampedX2, clampedZ, 4);
+                    groundTexture.needsUpdate = true;
+                }
+                const angleDeg = (sweepAngle * 180 / Math.PI).toFixed(1);
+                angleDisplay.textContent = angleDeg + '°';
+            }
+
+            // 螺旋桨旋转
+            const propSpeed = currentMode === 'push' ? 40 : 8;
+            droneGroup.children.forEach(child => {
+                if (child.geometry && child.geometry.type === 'BoxGeometry' &&
+                    child.geometry.parameters &&
+                    Math.abs(child.geometry.parameters.width - 0.02) < 0.01 &&
+                    Math.abs(child.geometry.parameters.height - 0.35) < 0.01) {
+                    child.rotation.z += propSpeed * dt;
+                }
+            });
+
+            if (ccdIndicator.material.emissiveIntensity !== undefined) {
+                ccdIndicator.material.emissiveIntensity = 0.5 + Math.sin(frameCount * 0.3) * 0.5;
+            }
+
+            renderer.render(scene, camera);
+
+            if (frameCount % 180 === 0 && (scannedPushRegions.length > 0 || scannedSweepAngles.length > 0)) {
+                updateGroundTextureFull();
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            switch (e.key.toLowerCase()) {
+                case '1':
+                    setMode('push');
+                    break;
+                case '2':
+                    setMode('sweep');
+                    break;
+                case 'r':
+                    resetScan();
+                    break;
+                case 'arrowleft':
+                    speedSlider.value = Math.max(0.3, scanSpeed - 0.2);
+                    updateSpeed(speedSlider.value);
+                    break;
+                case 'arrowright':
+                    speedSlider.value = Math.min(3, scanSpeed + 0.2);
+                    updateSpeed(speedSlider.value);
+                    break;
+                case 'f':
+                    camera.position.set(9, 7, 11);
+                    controls.target.set(0, 1.5, 0);
+                    controls.update();
+                    break;
+                case 't':
+                    camera.position.set(0, 16, 0.5);
+                    controls.target.set(0, 0, 0);
+                    controls.update();
+                    break;
+            }
+        });
+
+        renderer.domElement.addEventListener('dblclick', () => {
+            camera.position.set(9, 7, 11);
+            controls.target.set(0, 1.5, 0);
+            controls.update();
+        });
+
+        window.setMode = setMode;
+        window.updateSpeed = updateSpeed;
+        window.resetScan = resetScan;
+
+        // 初始化
+        droneGroup.position.set(droneX, DRONE_FLY_HEIGHT, 0);
+        pitchGroup.rotation.z = 0;
+        rollGroup.rotation.x = 0;
+        updateGroundTextureFull();
+        updateSpeed(1);
+
+        const initPodPos = getPodWorldPos();
+        updateScanLineVisual(droneX, -SCAN_HALF, droneX, SCAN_HALF);
+        updateFanPlane(initPodPos, droneX, -SCAN_HALF, droneX, SCAN_HALF);
+        projectionMarker.position.set(droneX, 0.008, 0);
+
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>

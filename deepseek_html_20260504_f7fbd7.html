@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无人机线阵CCD相机 - 推扫&摆扫成像3D演示</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --panel-bg: rgba(20, 20, 40, 0.95);
+            --text: #e0e0e0;
+            --accent: #4da6ff;
+            --accent2: #ff6b6b;
+            --accent3: #51cf66;
+            --gold: #ffc107;
+            --border: rgba(255, 255, 255, 0.15);
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --radius: 14px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            cursor: default;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #canvas-container canvas {
+            display: block;
+        }
+
+        /* 顶部标题栏 */
+        #title-bar {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow);
+        }
+        #title-bar .logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #2563eb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        #title-bar h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+        #title-bar .badge {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #aaa;
+            white-space: nowrap;
+            letter-spacing: 0.4px;
+        }
+
+        /* 底部控制面板 */
+        #control-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: var(--shadow);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mode-btn {
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: 2px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+            position: relative;
+            overflow: hidden;
+        }
+        .mode-btn:hover {
+            border-color: var(--accent);
+            color: #fff;
+            background: rgba(77, 166, 255, 0.1);
+        }
+        .mode-btn.active {
+            border-color: var(--accent);
+            background: rgba(77, 166, 255, 0.2);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(77, 166, 255, 0.25);
+            font-weight: 600;
+        }
+        .mode-btn .icon {
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 1.1rem;
+        }
+
+        #speed-slider {
+            width: 100px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+        .speed-label {
+            color: #aaa;
+            font-size: 0.78rem;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .speed-label span {
+            color: #fff;
+            font-weight: 600;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        #reset-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        #reset-btn:hover {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: var(--accent2);
+            color: #fff;
+        }
+
+        /* 状态指示器 */
+        #status-indicator {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .status-item {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 8px 14px;
+            font-size: 0.75rem;
+            color: #ccc;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.scanning {
+            background: var(--accent3);
+            animation: pulse 1.2s ease-in-out infinite;
+            box-shadow: 0 0 10px var(--accent3);
+        }
+        .status-dot.idle {
+            background: #888;
+        }
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.4;
+                transform: scale(1.8);
+            }
+        }
+
+        /* 图例提示 */
+        #legend-tip {
+            position: fixed;
+            top: 120px;
+            left: 20px;
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 0.7rem;
+            color: #aaa;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            line-height: 1.6;
+        }
+        #legend-tip .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        .dot.scanned {
+            background: #51cf66;
+        }
+        .dot.scanline {
+            background: #ff0;
+            box-shadow: 0 0 6px #ff0;
+        }
+        .dot.plane {
+            background: rgba(255, 180, 50, 0.7);
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            #title-bar {
+                padding: 8px 16px;
+                gap: 8px;
+                border-radius: 24px;
+            }
+            #title-bar h1 {
+                font-size: 0.85rem;
+            }
+            #title-bar .badge {
+                display: none;
+            }
+            #control-panel {
+                padding: 12px 14px;
+                gap: 10px;
+                border-radius: 12px;
+                bottom: 10px;
+            }
+            .mode-btn {
+                padding: 8px 14px;
+                font-size: 0.78rem;
+                border-radius: 20px;
+            }
+            #speed-slider {
+                width: 70px;
+            }
+            #status-indicator {
+                top: 100px;
+                right: 8px;
+                gap: 5px;
+            }
+            .status-item {
+                padding: 6px 10px;
+                font-size: 0.7rem;
+            }
+            #legend-tip {
+                top: 100px;
+                left: 8px;
+                padding: 8px 10px;
+                font-size: 0.65rem;
+            }
+        }
+        @media (max-width: 480px) {
+            #control-panel {
+                gap: 6px;
+                padding: 10px;
+            }
+            .mode-btn {
+                padding: 6px 10px;
+                font-size: 0.7rem;
+                border-radius: 16px;
+            }
+            #speed-slider {
+                width: 50px;
+            }
+            #title-bar h1 {
+                font-size: 0.75rem;
+            }
+            #legend-tip {
+                display: none;
+            }
+            #status-indicator {
+                top: 90px;
+                right: 4px;
+            }
+            .status-item {
+                padding: 4px 8px;
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 标题栏 -->
+    <div id="title-bar">
+        <div class="logo">🛸</div>
+        <h1>线阵CCD成像演示</h1>
+        <span class="badge">3D Dynamic</span>
+    </div>
+
+    <!-- 图例 -->
+    <div id="legend-tip">
+        <div><span class="dot scanned"></span> 已扫描区域</div>
+        <div><span class="dot scanline"></span> 当前扫描线</div>
+        <div><span class="dot plane"></span> 视野扇面</div>
+        <div style="margin-top:4px;color:#888;">🖱 拖拽旋转 · 滚轮缩放</div>
+    </div>
+
+    <!-- 状态指示 -->
+    <div id="status-indicator">
+        <div class="status-item">
+            <span class="status-dot scanning" id="status-dot"></span>
+            <span id="status-text">推扫成像中</span>
+        </div>
+        <div class="status-item" style="font-size:0.7rem;">
+            📐 扫描角: <span id="angle-display" style="color:#ffc107;font-weight:600;">0°</span>
+        </div>
+    </div>
+
+    <!-- 底部控制 -->
+    <div id="control-panel">
+        <button class="mode-btn active" id="btn-push" onclick="setMode('push')">
+            <span class="icon">✈️</span>推扫成像
+        </button>
+        <button class="mode-btn" id="btn-sweep" onclick="setMode('sweep')">
+            <span class="icon">🔄</span>摆扫成像
+        </button>
+        <div class="speed-label">
+            速度
+            <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="updateSpeed(this.value)">
+            <span id="speed-val">1×</span>
+        </div>
+        <button id="reset-btn" onclick="resetScan()">🔄 重置扫描</button>
+    </div>
+
+    <!-- Three.js 画布 -->
+    <div id="canvas-container"></div>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ==================== DOM 引用 ====================
+        const container = document.getElementById('canvas-container');
+        const btnPush = document.getElementById('btn-push');
+        const btnSweep = document.getElementById('btn-sweep');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedVal = document.getElementById('speed-val');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const angleDisplay = document.getElementById('angle-display');
+
+        // ==================== 场景初始化 ====================
+        const scene = new THREE.Scene();
+
+        // 天空渐变背景
+        scene.background = new THREE.Color('#1a1a2e');
+        scene.fog = new THREE.Fog('#1a1a2e', 30, 80);
+
+        // 渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        // 相机
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 120);
+        camera.position.set(9, 7, 11);
+        camera.lookAt(0, 0, 0);
+
+        // OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.5, 0);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 4;
+        controls.maxDistance = 30;
+        controls.maxPolarAngle = Math.PI * 0.48;
+        controls.minPolarAngle = 0.2;
+        controls.update();
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.15;
+
+        // ==================== 光照 ====================
+        // 环境光
+        const ambientLight = new THREE.AmbientLight('#c8d6ff', 2.5);
+        scene.add(ambientLight);
+
+        // 半球光（天空+地面）
+        const hemiLight = new THREE.HemisphereLight('#ffffff', '#445566', 1.6);
+        scene.add(hemiLight);
+
+        // 主方向光（模拟太阳）
+        const sunLight = new THREE.DirectionalLight('#fffef0', 8);
+        sunLight.position.set(15, 20, 5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 60;
+        sunLight.shadow.camera.left = -20;
+        sunLight.shadow.camera.right = 20;
+        sunLight.shadow.camera.top = 20;
+        sunLight.shadow.camera.bottom = -20;
+        sunLight.shadow.bias = -0.0003;
+        sunLight.shadow.normalBias = 0.01;
+        scene.add(sunLight);
+
+        // ==================== 地面 ====================
+        const GROUND_SIZE = 20;
+        const GROUND_HALF = GROUND_SIZE / 2;
+
+        // 地面纹理 Canvas
+        const groundTexCanvas = document.createElement('canvas');
+        groundTexCanvas.width = 1024;
+        groundTexCanvas.height = 1024;
+        const gctx = groundTexCanvas.getContext('2d');
+
+        // 生成模拟航拍地面影像
+        function generateGroundImage(ctx, w, h) {
+            // 基础色调 - 不同深浅的绿色植被
+            const baseGradient = ctx.createRadialGradient(w * 0.3, h * 0.4, w * 0.05, w * 0.5, h * 0.5, w * 0.75);
+            baseGradient.addColorStop(0, '#7a9a5c');
+            baseGradient.addColorStop(0.3, '#6d8b4e');
+            baseGradient.addColorStop(0.6, '#5c7a3f');
+            baseGradient.addColorStop(0.85, '#4a6530');
+            baseGradient.addColorStop(1, '#3d5528');
+            ctx.fillStyle = baseGradient;
+            ctx.fillRect(0, 0, w, h);
+
+            // 随机植被斑块
+            const rng = mulberry32(42);
+            for (let i = 0; i < 200; i++) {
+                const x = rng() * w;
+                const y = rng() * h;
+                const rx = 15 + rng() * 80;
+                const ry = 10 + rng() * 55;
+                const shade = 100 + rng() * 120;
+                const g = 130 + rng() * 80;
+                ctx.fillStyle = `rgba(${30 + rng()*40}, ${g}, ${20 + rng()*30}, 0.5)`;
+                ctx.beginPath();
+                ctx.ellipse(x, y, rx, ry, rng() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 模拟道路
+            ctx.strokeStyle = '#b8b0a0';
+            ctx.lineWidth = 14;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(50, 200);
+            ctx.bezierCurveTo(300, 180, 500, 350, 750, 300);
+            ctx.stroke();
+            ctx.strokeStyle = '#c8c0b0';
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.moveTo(50, 200);
+            ctx.bezierCurveTo(300, 180, 500, 350, 750, 300);
+            ctx.stroke();
+            // 虚线标线
+            ctx.strokeStyle = '#e8e0d0';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([30, 25]);
+            ctx.beginPath();
+            ctx.moveTo(50, 200);
+            ctx.bezierCurveTo(300, 180, 500, 350, 750, 300);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 第二条道路（横向）
+            ctx.strokeStyle = '#b0a898';
+            ctx.lineWidth = 12;
+            ctx.beginPath();
+            ctx.moveTo(150, 620);
+            ctx.bezierCurveTo(350, 640, 600, 580, 900, 600);
+            ctx.stroke();
+            ctx.strokeStyle = '#c5bdb0';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(150, 620);
+            ctx.bezierCurveTo(350, 640, 600, 580, 900, 600);
+            ctx.stroke();
+
+            // 建筑物/房屋
+            for (let i = 0; i < 30; i++) {
+                const bx = 60 + rng() * (w - 120);
+                const by = 60 + rng() * (h - 120);
+                const bw = 18 + rng() * 40;
+                const bh = 14 + rng() * 35;
+                ctx.fillStyle = `rgba(${180 + rng()*60}, ${160 + rng()*50}, ${140 + rng()*40}, 0.8)`;
+                ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = `rgba(${200 + rng()*50}, ${180 + rng()*40}, ${160 + rng()*35}, 0.6)`;
+                ctx.fillRect(bx + 2, by + 2, bw - 4, bh - 4);
+            }
+
+            // 水体
+            for (let i = 0; i < 5; i++) {
+                const wx = 100 + rng() * (w - 200);
+                const wy = 100 + rng() * (h - 200);
+                const wr = 25 + rng() * 60;
+                const wg = ctx.createRadialGradient(wx, wy, wr * 0.2, wx, wy, wr);
+                wg.addColorStop(0, 'rgba(60,140,200,0.7)');
+                wg.addColorStop(0.5, 'rgba(50,120,180,0.5)');
+                wg.addColorStop(1, 'rgba(40,90,140,0.1)');
+                ctx.fillStyle = wg;
+                ctx.beginPath();
+                ctx.ellipse(wx, wy, wr, wr * 0.6, rng() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 一些田地纹理
+            for (let i = 0; i < 15; i++) {
+                const fx = rng() * w;
+                const fy = rng() * h;
+                ctx.strokeStyle = `rgba(${100 + rng()*80}, ${140 + rng()*60}, ${60 + rng()*50}, 0.4)`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                const fw = 40 + rng() * 100;
+                const fh = 20 + rng() * 60;
+                for (let j = 0; j < 8; j++) {
+                    ctx.moveTo(fx, fy + j * (fh / 8));
+                    ctx.lineTo(fx + fw, fy + j * (fh / 8));
+                }
+                ctx.stroke();
+            }
+        }
+
+        // 简单的伪随机数生成器
+        function mulberry32(a) {
+            return function () {
+                a |= 0;
+                a = a + 0x6D2B79F5 | 0;
+                let t = Math.imul(a ^ a >>> 15, 1 | a);
+                t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            };
+        }
+
+        // 初始化地面影像
+        generateGroundImage(gctx, groundTexCanvas.width, groundTexCanvas.height);
+
+        // 保存原始地面影像
+        const groundImageData = gctx.getImageData(0, 0, groundTexCanvas.width, groundTexCanvas.height);
+
+        // 在地面影像上叠加遮罩（未扫描区域为深灰色半透明）
+        function applyFullMask(ctx, w, h) {
+            // 先恢复原始影像
+            ctx.putImageData(groundImageData, 0, 0);
+            // 叠加遮罩
+            ctx.fillStyle = 'rgba(30,32,40,0.82)';
+            ctx.fillRect(0, 0, w, h);
+            // 添加细微纹理
+            ctx.fillStyle = 'rgba(40,42,50,0.3)';
+            for (let i = 0; i < w; i += 8) {
+                for (let j = 0; j < h; j += 8) {
+                    if ((i + j) % 16 === 0) {
+                        ctx.fillRect(i, j, 4, 4);
+                    }
+                }
+            }
+        }
+        applyFullMask(gctx, groundTexCanvas.width, groundTexCanvas.height);
+
+        // 地面纹理
+        const groundTexture = new THREE.CanvasTexture(groundTexCanvas);
+        groundTexture.wrapS = THREE.ClampToEdgeWrapping;
+        groundTexture.wrapT = THREE.ClampToEdgeWrapping;
+        groundTexture.colorSpace = THREE.SRGBColorSpace;
+        groundTexture.anisotropy = 4;
+        groundTexture.magFilter = THREE.LinearFilter;
+        groundTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        groundTexture.generateMipmaps = true;
+
+        // 地面平面
+        const groundGeo = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
+        const groundMat = new THREE.MeshStandardMaterial({
+            map: groundTexture,
+            roughness: 0.55,
+            metalness: 0.05,
+            color: '#ffffff',
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        ground.renderOrder = 1;
+        scene.add(ground);
+
+        // 地面网格线（装饰）
+        const gridHelper = new THREE.PolarGridHelper(GROUND_HALF, 40, 20, 64, '#444444', '#333333');
+        gridHelper.position.y = 0.005;
+        gridHelper.renderOrder = 2;
+        scene.add(gridHelper);
+
+        // ==================== 扫描线3D指示器 ====================
+        // 地面上的扫描线（亮色线）
+        const scanLineGeo = new THREE.BufferGeometry();
+        const scanLinePositions = new Float32Array(2 * 3); // 两个端点
+        scanLineGeo.setAttribute('position', new THREE.BufferAttribute(scanLinePositions, 3));
+        const scanLineMat = new THREE.LineBasicMaterial({
+            color: '#ffff00',
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.9,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const scanLineMesh = new THREE.Line(scanLineGeo, scanLineMat);
+        scanLineMesh.renderOrder = 5;
+        scanLineMesh.position.y = 0.015;
+        scene.add(scanLineMesh);
+
+        // 扫描线发光效果（使用细平面）
+        const scanGlowGeo = new THREE.PlaneGeometry(0.08, 1);
+        const scanGlowMat = new THREE.MeshBasicMaterial({
+            color: '#ffff88',
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const scanGlowPlane = new THREE.Mesh(scanGlowGeo, scanGlowMat);
+        scanGlowPlane.rotation.x = -Math.PI / 2;
+        scanGlowPlane.position.y = 0.018;
+        scanGlowPlane.renderOrder = 4;
+        scanGlowPlane.visible = true;
+        scene.add(scanGlowPlane);
+
+        // ==================== 视野扇面（从吊舱到地面） ====================
+        const fanPlaneGeo = new THREE.PlaneGeometry(1, 1);
+        const fanPlaneMat = new THREE.MeshBasicMaterial({
+            color: '#ffb832',
+            transparent: true,
+            opacity: 0.25,
+            side: THREE.DoubleSide,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const fanPlane = new THREE.Mesh(fanPlaneGeo, fanPlaneMat);
+        fanPlane.renderOrder = 3;
+        fanPlane.visible = true;
+        scene.add(fanPlane);
+
+        // 扇面边缘光线
+        const fanEdgeGeo1 = new THREE.BufferGeometry();
+        const fanEdgeGeo2 = new THREE.BufferGeometry();
+        const fanEdgePos1 = new Float32Array(2 * 3);
+        const fanEdgePos2 = new Float32Array(2 * 3);
+        fanEdgeGeo1.setAttribute('position', new THREE.BufferAttribute(fanEdgePos1, 3));
+        fanEdgeGeo2.setAttribute('position', new THREE.BufferAttribute(fanEdgePos2, 3));
+        const fanEdgeMat = new THREE.LineBasicMaterial({
+            color: '#ffb832',
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.6,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const fanEdge1 = new THREE.Line(fanEdgeGeo1, fanEdgeMat);
+        const fanEdge2 = new THREE.Line(fanEdgeGeo2, fanEdgeMat);
+        fanEdge1.renderOrder = 3;
+        fanEdge2.renderOrder = 3;
+        scene.add(fanEdge1);
+        scene.add(fanEdge2);
+
+        // ==================== 无人机模型 ====================
+        const droneGroup = new THREE.Group();
+        scene.add(droneGroup);
+
+        // 机身
+        const fuselageGeo = new THREE.CylinderGeometry(0.22, 0.2, 1.8, 12, 4);
+        fuselageGeo.rotateX(Math.PI / 2);
+        const fuselageMat = new THREE.MeshStandardMaterial({
+            color: '#e8e8ec',
+            roughness: 0.3,
+            metalness: 0.4,
+        });
+        const fuselage = new THREE.Mesh(fuselageGeo, fuselageMat);
+        fuselage.castShadow = true;
+        fuselage.receiveShadow = true;
+        droneGroup.add(fuselage);
+
+        // 机头
+        const noseGeo = new THREE.SphereGeometry(0.2, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6);
+        const noseMat = new THREE.MeshStandardMaterial({
+            color: '#d0d0d8',
+            roughness: 0.25,
+            metalness: 0.5,
+        });
+        const nose = new THREE.Mesh(noseGeo, noseMat);
+        nose.rotation.x = -Math.PI / 2;
+        nose.position.z = 0.85;
+        nose.castShadow = true;
+        droneGroup.add(nose);
+
+        // 机翼
+        const wingGeo = new THREE.BoxGeometry(3.2, 0.06, 0.55);
+        const wingMat = new THREE.MeshStandardMaterial({
+            color: '#f0f0f4',
+            roughness: 0.35,
+            metalness: 0.3,
+        });
+        const wing = new THREE.Mesh(wingGeo, wingMat);
+        wing.position.set(0, -0.05, -0.1);
+        wing.castShadow = true;
+        wing.receiveShadow = true;
+        droneGroup.add(wing);
+
+        // 尾翼水平
+        const tailHGeo = new THREE.BoxGeometry(1.0, 0.04, 0.3);
+        const tailH = new THREE.Mesh(tailHGeo, wingMat);
+        tailH.position.set(0, 0.02, -0.75);
+        tailH.castShadow = true;
+        droneGroup.add(tailH);
+
+        // 尾翼垂直
+        const tailVGeo = new THREE.BoxGeometry(0.04, 0.35, 0.3);
+        const tailV = new THREE.Mesh(tailVGeo, fuselageMat);
+        tailV.position.set(0, 0.16, -0.75);
+        tailV.castShadow = true;
+        droneGroup.add(tailV);
+
+        // 发动机短舱
+        const engineGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.4, 10);
+        engineGeo.rotateX(Math.PI / 2);
+        const engineMat = new THREE.MeshStandardMaterial({
+            color: '#555560',
+            roughness: 0.4,
+            metalness: 0.7,
+        });
+        const engineL = new THREE.Mesh(engineGeo, engineMat);
+        engineL.position.set(0.55, -0.04, -0.15);
+        engineL.castShadow = true;
+        droneGroup.add(engineL);
+        const engineR = new THREE.Mesh(engineGeo, engineMat);
+        engineR.position.set(-0.55, -0.04, -0.15);
+        engineR.castShadow = true;
+        droneGroup.add(engineR);
+
+        // 螺旋桨（简化）
+        const propGeo = new THREE.BoxGeometry(0.02, 0.35, 0.06);
+        const propMat = new THREE.MeshStandardMaterial({
+            color: '#333338',
+            roughness: 0.6,
+            metalness: 0.8,
+        });
+        const propL = new THREE.Mesh(propGeo, propMat);
+        propL.position.set(0.55, -0.04, 0.08);
+        droneGroup.add(propL);
+        const propR = new THREE.Mesh(propGeo, propMat);
+        propR.position.set(-0.55, -0.04, 0.08);
+        droneGroup.add(propR);
+
+        // ==================== 吊舱结构 ====================
+        // 吊舱挂载点（在无人机下方）
+        const podMountY = -0.35; // 无人机下方挂载位置
+
+        // 俯仰旋转组（绕Z轴/侧翼方向 - pitch）
+        const pitchGroup = new THREE.Group();
+        pitchGroup.position.set(0, podMountY, 0);
+        droneGroup.add(pitchGroup);
+
+        // 侧摆旋转组（绕X轴/飞行方向 - roll）
+        const rollGroup = new THREE.Group();
+        pitchGroup.add(rollGroup);
+
+        // 连接杆
+        const rodGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+        const rodMat = new THREE.MeshStandardMaterial({
+            color: '#666670',
+            roughness: 0.35,
+            metalness: 0.7,
+        });
+        const rod = new THREE.Mesh(rodGeo, rodMat);
+        rod.position.y = -0.25;
+        rod.castShadow = true;
+        rollGroup.add(rod);
+
+        // 吊舱外壳
+        const podGeo = new THREE.CylinderGeometry(0.16, 0.17, 0.45, 16);
+        const podMat = new THREE.MeshStandardMaterial({
+            color: '#3a3a44',
+            roughness: 0.3,
+            metalness: 0.6,
+        });
+        const pod = new THREE.Mesh(podGeo, podMat);
+        pod.position.y = -0.55;
+        pod.castShadow = true;
+        pod.receiveShadow = true;
+        rollGroup.add(pod);
+
+        // CCD传感器指示器（吊舱底部小红点）
+        const ccdGeo = new THREE.SphereGeometry(0.05, 8, 8);
+        const ccdMat = new THREE.MeshStandardMaterial({
+            color: '#ff3333',
+            roughness: 0.2,
+            metalness: 0.3,
+            emissive: '#ff0000',
+            emissiveIntensity: 0.8,
+        });
+        const ccdIndicator = new THREE.Mesh(ccdGeo, ccdMat);
+        ccdIndicator.position.y = -0.78;
+        rollGroup.add(ccdIndicator);
+
+        // 镜头环
+        const lensRingGeo = new THREE.TorusGeometry(0.07, 0.02, 8, 16);
+        const lensRingMat = new THREE.MeshStandardMaterial({
+            color: '#222228',
+            roughness: 0.2,
+            metalness: 0.9,
+        });
+        const lensRing = new THREE.Mesh(lensRingGeo, lensRingMat);
+        lensRing.position.y = -0.76;
+        lensRing.rotation.x = Math.PI / 2;
+        rollGroup.add(lensRing);
+
+        // 存储吊舱相关引用
+        const podAssembly = {
+            pitchGroup,
+            rollGroup,
+            pod,
+            ccdIndicator,
+            lensRing,
+            rod,
+        };
+
+        // ==================== 场景中的标记点 ====================
+        // 无人机地面投影点标记
+        const projectionMarkerGeo = new THREE.RingGeometry(0.15, 0.22, 32);
+        const projectionMarkerMat = new THREE.MeshBasicMaterial({
+            color: '#ffffff',
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.5,
+            depthTest: true,
+            depthWrite: false,
+        });
+        const projectionMarker = new THREE.Mesh(projectionMarkerGeo, projectionMarkerMat);
+        projectionMarker.rotation.x = -Math.PI / 2;
+        projectionMarker.position.y = 0.008;
+        projectionMarker.renderOrder = 6;
+        projectionMarker.visible = true;
+        scene.add(projectionMarker);
+
+        // ==================== 状态变量 ====================
+        const SCAN_WIDTH = 8; // 扫描线在地面上的覆盖宽度
+        const SCAN_HALF = SCAN_WIDTH / 2;
+        const DRONE_FLY_HEIGHT = 5.5;
+        const POD_HEIGHT_OFFSET = 0.9; // 吊舱底部距无人机的高度偏移
+
+        let currentMode = 'push'; // 'push' | 'sweep'
+        let scanSpeed = 1.0;
+        let droneX = -7; // 无人机X位置（推扫模式）
+        let droneFlyDirection = 1; // 飞行方向
+        let sweepAngle = 0; // 摆扫角度（弧度）
+        let sweepDirection = 1;
+        const SWEEP_ANGLE_MAX = Math.PI / 5.5; // 约32.7度
+        const SWEEP_SPEED_BASE = 0.025; // 基础摆动速度
+
+        // 已扫描轨迹记录
+        let scannedPushRegions = []; // [{xMin, xMax, zMin, zMax}] 推扫已扫描区域
+        let scannedSweepAngles = []; // [{angleMin, angleMax}] 摆扫已扫描角度范围
+        let lastScanUpdateFrame = 0;
+        const SCAN_UPDATE_INTERVAL = 3; // 每N帧更新一次地面纹理
+
+        // ==================== 地面纹理更新 ====================
+        function worldToCanvas(wx, wz) {
+            // 地面坐标转canvas像素坐标
+            const cx = (wx + GROUND_HALF) / GROUND_SIZE * groundTexCanvas.width;
+            const cz = (wz + GROUND_HALF) / GROUND_SIZE * groundTexCanvas.height;
+            return { x: cx, y: cz };
+        }
+
+        function eraseMaskOnLine(ctx, x1, z1, x2, z2, lineWidth) {
+            const p1 = worldToCanvas(x1, z1);
+            const p2 = worldToCanvas(x2, z2);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.strokeStyle = 'rgba(255,255,255,1)';
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function eraseMaskRect(ctx, xMin, zMin, xMax, zMax) {
+            const pMin = worldToCanvas(xMin, zMin);
+            const pMax = worldToCanvas(xMax, zMax);
+            const cx = Math.min(pMin.x, pMax.x);
+            const cy = Math.min(pMin.y, pMax.y);
+            const cw = Math.abs(pMax.x - pMin.x);
+            const ch = Math.abs(pMax.y - pMax.y);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(255,255,255,1)';
+            ctx.fillRect(cx, cy, Math.max(cw, 1), Math.max(ch, 1));
+            ctx.restore();
+        }
+
+        function updateGroundTextureFull() {
+            // 完全重建地面纹理
+            gctx.putImageData(groundImageData, 0, 0);
+            gctx.fillStyle = 'rgba(30,32,40,0.82)';
+            gctx.fillRect(0, 0, groundTexCanvas.width, groundTexCanvas.height);
+
+            // 重新应用所有已扫描区域
+            // 推扫区域
+            for (const region of scannedPushRegions) {
+                const pMin = worldToCanvas(region.xMin, region.zMin);
+                const pMax = worldToCanvas(region.xMax, region.zMax);
+                const cx = Math.min(pMin.x, pMax.x);
+                const cy = Math.min(pMin.y, pMax.y);
+                const cw = Math.abs(pMax.x - pMin.x);
+                const ch = Math.abs(pMax.y - pMin.y);
+                gctx.save();
+                gctx.globalCompositeOperation = 'destination-out';
+                gctx.fillStyle = 'rgba(255,255,255,1)';
+                gctx.fillRect(cx, cy, Math.max(cw, 1), Math.max(ch, 1));
+                gctx.restore();
+            }
+            // 摆扫扇形区域
+            if (scannedSweepAngles.length > 0 && currentMode === 'sweep') {
+                drawAllSweepScanned(gctx);
+            } else if (scannedSweepAngles.length > 0) {
+                drawAllSweepScanned(gctx);
+            }
+
+            groundTexture.needsUpdate = true;
+            groundTexture.generateMipmaps = true;
+        }
+
+        function drawAllSweepScanned(ctx) {
+            const centerCX = groundTexCanvas.width / 2;
+            const centerCY = groundTexCanvas.height / 2;
+            const maxRadiusCanvas = (GROUND_HALF + 2) / GROUND_SIZE * groundTexCanvas.width;
+
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(255,255,255,1)';
+
+            for (const range of scannedSweepAngles) {
+                const a1 = range.angleMin;
+                const a2 = range.angleMax;
+                // 扫描线在canvas上的角度（相对于canvas的X轴，即世界Z轴方向）
+                // 世界Z轴对应canvas的Y轴（行方向），世界X轴对应canvas的X轴
+                // 摆扫角度sweepAngle是绕世界X轴旋转，扫描线在地面上沿世界Z轴偏移
+                // 在canvas坐标中，扫描线通过中心，角度在canvas坐标系中
+                const canvasAngle1 = a1; // 在canvas中，角度相对于水平方向
+                const canvasAngle2 = a2;
+
+                ctx.beginPath();
+                ctx.moveTo(centerCX, centerCY);
+                ctx.arc(centerCX, centerCY, maxRadiusCanvas, -canvasAngle2, -canvasAngle1);
+                ctx.lineTo(centerCX, centerCY);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function recordPushScan(xCenter, zMin, zMax) {
+            const halfW = 0.04; // 每次扫描的X宽度（很小，因为是线扫描）
+            const region = {
+                xMin: xCenter - halfW,
+                xMax: xCenter + halfW,
+                zMin: zMin,
+                zMax: zMax,
+            };
+            // 合并重叠区域
+            let merged = false;
+            for (let r of scannedPushRegions) {
+                if (Math.abs(r.zMin - zMin) < 0.1 && Math.abs(r.zMax - zMax) < 0.1) {
+                    if (xCenter >= r.xMin - 0.1 && xCenter <= r.xMax + 0.1) {
+                        r.xMin = Math.min(r.xMin, region.xMin);
+                        r.xMax = Math.max(r.xMax, region.xMax);
+                        merged = true;
+                        break;
+                    }
+                }
+            }
+            if (!merged) {
+                scannedPushRegions.push(region);
+            }
+            // 限制存储数量
+            if (scannedPushRegions.length > 500) {
+                scannedPushRegions = scannedPushRegions.slice(-400);
+            }
+        }
+
+        function recordSweepScan(angle) {
+            const halfA = 0.006; // 每次扫描的角度宽度
+            const range = { angleMin: angle - halfA, angleMax: angle + halfA };
+            let merged = false;
+            for (let r of scannedSweepAngles) {
+                if (angle >= r.angleMin - 0.008 && angle <= r.angleMax + 0.008) {
+                    r.angleMin = Math.min(r.angleMin, range.angleMin);
+                    r.angleMax = Math.max(r.angleMax, range.angleMax);
+                    merged = true;
+                    break;
+                }
+            }
+            if (!merged) {
+                scannedSweepAngles.push(range);
+            }
+            if (scannedSweepAngles.length > 300) {
+                scannedSweepAngles = scannedSweepAngles.slice(-250);
+            }
+        }
+
+        // ==================== 更新扫描线3D位置 ====================
+        function updateScanLineVisual(x1, z1, x2, z2) {
+            scanLinePositions[0] = x1;
+            scanLinePositions[1] = 0.016;
+            scanLinePositions[2] = z1;
+            scanLinePositions[3] = x2;
+            scanLinePositions[4] = 0.016;
+            scanLinePositions[5] = z2;
+            scanLineMesh.geometry.attributes.position.needsUpdate = true;
+
+            // 更新发光平面
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const length = Math.sqrt(dx * dx + dz * dz);
+            const midX = (x1 + x2) / 2;
+            const midZ = (z1 + z2) / 2;
+            const angle = Math.atan2(dx, dz);
+
+            scanGlowPlane.position.set(midX, 0.018, midZ);
+            scanGlowPlane.rotation.y = angle;
+            scanGlowPlane.scale.set(1, 1, length);
+            scanGlowPlane.visible = true;
+        }
+
+        function updateFanPlane(podWorldPos, x1, z1, x2, z2) {
+            // 视野扇面从吊舱延伸到地面扫描线
+            const groundMidX = (x1 + x2) / 2;
+            const groundMidZ = (z1 + z2) / 2;
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const scanLength = Math.sqrt(dx * dx + dz * dz);
+            const fanHeight = Math.abs(podWorldPos.y); // 吊舱到地面的高度
+            const fanWidth = scanLength;
+
+            fanPlane.position.set(
+                (podWorldPos.x + groundMidX) / 2,
+                podWorldPos.y / 2,
+                (podWorldPos.z + groundMidZ) / 2
+            );
+            fanPlane.scale.set(fanWidth, fanHeight, 1);
+
+            // 扇面法线方向
+            const scanDirX = dx / scanLength;
+            const scanDirZ = dz / scanLength;
+            // 扇面平面包含扫描线方向和垂直方向
+            // 法线垂直于扫描线方向（在XZ平面内）
+            const normalX = -scanDirZ;
+            const normalZ = scanDirX;
+
+            // 设置扇面方向
+            const upVec = new THREE.Vector3(0, 1, 0);
+            const normalVec = new THREE.Vector3(normalX, 0, normalZ).normalize();
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normalVec);
+            fanPlane.setRotationFromQuaternion(quaternion);
+
+            // 更新边缘光线
+            fanEdgePos1[0] = podWorldPos.x;
+            fanEdgePos1[1] = podWorldPos.y;
+            fanEdgePos1[2] = podWorldPos.z;
+            fanEdgePos1[3] = x1;
+            fanEdgePos1[4] = 0.012;
+            fanEdgePos1[5] = z1;
+            fanEdge1.geometry.attributes.position.needsUpdate = true;
+
+            fanEdgePos2[0] = podWorldPos.x;
+            fanEdgePos2[1] = podWorldPos.y;
+            fanEdgePos2[2] = podWorldPos.z;
+            fanEdgePos2[3] = x2;
+            fanEdgePos2[4] = 0.012;
+            fanEdgePos2[5] = z2;
+            fanEdge2.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // ==================== 获取吊舱世界位置 ====================
+        function getPodWorldPos() {
+            const localPos = new THREE.Vector3(0, -0.78, 0);
+            rollGroup.localToWorld(localPos);
+            return localPos;
+        }
+
+        function getPodWorldPosAdjusted() {
+            // 吊舱底部（CCD位置）在世界空间
+            const localPos = new THREE.Vector3(0, -0.78, 0);
+            rollGroup.localToWorld(localPos);
+            return localPos;
+        }
+
+        // ==================== 模式切换 ====================
+        function setMode(mode) {
+            if (currentMode === mode) return;
+            currentMode = mode;
+
+            // 更新按钮状态
+            btnPush.classList.toggle('active', mode === 'push');
+            btnSweep.classList.toggle('active', mode === 'sweep');
+
+            if (mode === 'push') {
+                statusText.textContent = '推扫成像中';
+                statusDot.className = 'status-dot scanning';
+                // 确保无人机在扫描起始位置
+                if (droneX > GROUND_HALF - 1 || droneX < -GROUND_HALF + 1) {
+                    droneX = -GROUND_HALF + 2;
+                    droneFlyDirection = 1;
+                }
+                // 重置吊舱旋转
+                pitchGroup.rotation.z = 0;
+                rollGroup.rotation.x = 0;
+            } else {
+                statusText.textContent = '摆扫成像中';
+                statusDot.className = 'status-dot scanning';
+                droneX = 0;
+                droneFlyDirection = 0;
+                sweepAngle = 0;
+                sweepDirection = 1;
+                pitchGroup.rotation.z = 0;
+                rollGroup.rotation.x = 0;
+            }
+            updateGroundTextureFull();
+        }
+
+        function updateSpeed(val) {
+            scanSpeed = parseFloat(val);
+            speedVal.textContent = val + '×';
+        }
+
+        function resetScan() {
+            scannedPushRegions = [];
+            scannedSweepAngles = [];
+            droneX = currentMode === 'push' ? -GROUND_HALF + 2 : 0;
+            droneFlyDirection = currentMode === 'push' ? 1 : 0;
+            sweepAngle = 0;
+            sweepDirection = 1;
+            pitchGroup.rotation.z = 0;
+            rollGroup.rotation.x = 0;
+            applyFullMask(gctx, groundTexCanvas.width, groundTexCanvas.height);
+            groundTexture.needsUpdate = true;
+            groundTexture.generateMipmaps = true;
+            scanGlowPlane.visible = false;
+            scanLinePositions.fill(0);
+            scanLineMesh.geometry.attributes.position.needsUpdate = true;
+            fanPlane.visible = false;
+            fanEdgePos1.fill(0);
+            fanEdgePos2.fill(0);
+            fanEdge1.geometry.attributes.position.needsUpdate = true;
+            fanEdge2.geometry.attributes.position.needsUpdate = true;
+            angleDisplay.textContent = '0°';
+        }
+
+        // ==================== 动画循环 ====================
+        const clock = new THREE.Clock();
+        let frameCount = 0;
+
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(clock.getDelta(), 0.1);
+            frameCount++;
+
+            controls.update();
+
+            // 更新无人机位置
+            droneGroup.position.y = DRONE_FLY_HEIGHT;
+
+            if (currentMode === 'push') {
+                // 推扫模式：无人机沿X轴飞行
+                const flySpeed = 2.5 * scanSpeed;
+                droneX += flySpeed * dt * droneFlyDirection;
+
+                // 边界检测
+                if (droneX > GROUND_HALF - 1.5) {
+                    droneX = GROUND_HALF - 1.5;
+                    droneFlyDirection = -1;
+                } else if (droneX < -GROUND_HALF + 1.5) {
+                    droneX = -GROUND_HALF + 1.5;
+                    droneFlyDirection = 1;
+                }
+
+                droneGroup.position.x = droneX;
+                droneGroup.position.z = 0;
+                droneGroup.rotation.set(0, 0, 0);
+                // 飞行方向朝向
+                if (droneFlyDirection < 0) {
+                    droneGroup.rotation.y = Math.PI;
+                } else {
+                    droneGroup.rotation.y = 0;
+                }
+
+                // 吊舱保持垂直向下
+                pitchGroup.rotation.z = 0;
+                rollGroup.rotation.x = 0;
+
+                // 扫描线在地面上：垂直于飞行方向（沿Z轴），在无人机X位置
+                const scanX = droneX;
+                const scanZ1 = -SCAN_HALF;
+                const scanZ2 = SCAN_HALF;
+
+                updateScanLineVisual(scanX, scanZ1, scanX, scanZ2);
+
+                // 更新视野扇面
+                const podPos = getPodWorldPosAdjusted();
+                updateFanPlane(podPos, scanX, scanZ1, scanX, scanZ2);
+                fanPlane.visible = true;
+                fanEdge1.visible = true;
+                fanEdge2.visible = true;
+
+                // 更新投影标记
+                projectionMarker.position.set(scanX, 0.008, 0);
+                projectionMarker.visible = true;
+
+                // 记录扫描区域
+                if (frameCount - lastScanUpdateFrame >= SCAN_UPDATE_INTERVAL) {
+                    recordPushScan(scanX, scanZ1, scanZ2);
+                    lastScanUpdateFrame = frameCount;
+                    // 增量更新地面纹理
+                    eraseMaskOnLine(gctx, scanX, scanZ1, scanX, scanZ2, 4);
+                    groundTexture.needsUpdate = true;
+                }
+
+                angleDisplay.textContent = '0°（垂直）';
+
+            } else {
+                // 摆扫模式：无人机悬停，吊舱绕X轴摆动
+                droneX = 0;
+                droneGroup.position.x = 0;
+                droneGroup.position.z = 0;
+                droneGroup.rotation.set(0, 0, 0);
+
+                // 吊舱绕X轴摆动（侧摆）
+                const sweepSpeed = SWEEP_SPEED_BASE * scanSpeed;
+                sweepAngle += sweepSpeed * dt * sweepDirection;
+
+                if (sweepAngle > SWEEP_ANGLE_MAX) {
+                    sweepAngle = SWEEP_ANGLE_MAX;
+                    sweepDirection = -1;
+                } else if (sweepAngle < -SWEEP_ANGLE_MAX) {
+                    sweepAngle = -SWEEP_ANGLE_MAX;
+                    sweepDirection = 1;
+                }
+
+                rollGroup.rotation.x = sweepAngle;
+                pitchGroup.rotation.z = 0;
+
+                // 计算地面扫描线位置
+                const podPos = getPodWorldPosAdjusted();
+                const podH = Math.abs(podPos.y);
+                // 光轴与地面交点（偏移）
+                const groundCenterZ = podPos.z - podH * Math.tan(sweepAngle);
+                const groundCenterX = podPos.x;
+
+                // 扫描线在地面上，方向主要沿Z轴（在XZ平面内投影）
+                // 由于绕X轴旋转，扫描线在3D空间中倾斜，但在地面投影近似沿Z轴方向
+                const scanHalfLength = SCAN_HALF / Math.cos(sweepAngle); // 斜距修正
+                const scanZ1 = groundCenterZ - scanHalfLength;
+                const scanZ2 = groundCenterZ + scanHalfLength;
+                const scanX1 = groundCenterX;
+                const scanX2 = groundCenterX;
+
+                // 限制在地面范围内
+                const clampedZ1 = Math.max(-GROUND_HALF - 1, Math.min(GROUND_HALF + 1, scanZ1));
+                const clampedZ2 = Math.max(-GROUND_HALF - 1, Math.min(GROUND_HALF + 1, scanZ2));
+
+                updateScanLineVisual(scanX1, clampedZ1, scanX2, clampedZ2);
+                updateFanPlane(podPos, scanX1, clampedZ1, scanX2, clampedZ2);
+                fanPlane.visible = true;
+                fanEdge1.visible = true;
+                fanEdge2.visible = true;
+
+                // 投影标记
+                projectionMarker.position.set(groundCenterX, 0.008, groundCenterZ);
+                projectionMarker.visible = true;
+
+                // 记录扫描
+                if (frameCount - lastScanUpdateFrame >= SCAN_UPDATE_INTERVAL) {
+                    recordSweepScan(sweepAngle);
+                    lastScanUpdateFrame = frameCount;
+                    eraseMaskOnLine(gctx, scanX1, clampedZ1, scanX2, clampedZ2, 4);
+                    groundTexture.needsUpdate = true;
+                }
+
+                const angleDeg = (sweepAngle * 180 / Math.PI).toFixed(1);
+                angleDisplay.textContent = angleDeg + '°';
+            }
+
+            // 螺旋桨旋转动画
+            if (droneGroup.children.length > 0) {
+                const propSpeed = currentMode === 'push' ? 40 : 8;
+                for (const child of droneGroup.children) {
+                    if (child.geometry && child.geometry.type === 'BoxGeometry' &&
+                        child.geometry.parameters &&
+                        Math.abs(child.geometry.parameters.width - 0.02) < 0.01 &&
+                        Math.abs(child.geometry.parameters.height - 0.35) < 0.01) {
+                        child.rotation.z += propSpeed * dt;
+                    }
+                }
+            }
+
+            // CCD指示灯闪烁
+            if (ccdIndicator.material.emissiveIntensity !== undefined) {
+                ccdIndicator.material.emissiveIntensity = 0.5 + Math.sin(frameCount * 0.3) * 0.5;
+            }
+
+            // 渲染
+            renderer.render(scene, camera);
+
+            // 定期完全重建地面纹理（防止累积误差）
+            if (frameCount % 180 === 0 && (scannedPushRegions.length > 0 || scannedSweepAngles.length > 0)) {
+                updateGroundTextureFull();
+            }
+        }
+
+        // ==================== 窗口调整 ====================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==================== 键盘控制 ====================
+        window.addEventListener('keydown', (e) => {
+            switch (e.key.toLowerCase()) {
+                case '1':
+                    setMode('push');
+                    break;
+                case '2':
+                    setMode('sweep');
+                    break;
+                case 'r':
+                    resetScan();
+                    break;
+                case 'arrowleft':
+                    speedSlider.value = Math.max(0.3, scanSpeed - 0.2);
+                    updateSpeed(speedSlider.value);
+                    break;
+                case 'arrowright':
+                    speedSlider.value = Math.min(3, scanSpeed + 0.2);
+                    updateSpeed(speedSlider.value);
+                    break;
+                case 'f':
+                    // 重置视角
+                    camera.position.set(9, 7, 11);
+                    controls.target.set(0, 1.5, 0);
+                    controls.update();
+                    break;
+                case 't':
+                    // 俯视视角
+                    camera.position.set(0, 16, 0.5);
+                    controls.target.set(0, 0, 0);
+                    controls.update();
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        // ==================== 触摸设备双击重置视角 ====================
+        renderer.domElement.addEventListener('dblclick', () => {
+            camera.position.set(9, 7, 11);
+            controls.target.set(0, 1.5, 0);
+            controls.update();
+        });
+
+        // ==================== 暴露函数到全局 ====================
+        window.setMode = setMode;
+        window.updateSpeed = updateSpeed;
+        window.resetScan = resetScan;
+
+        // ==================== 启动 ====================
+        // 初始设置
+        droneGroup.position.set(droneX, DRONE_FLY_HEIGHT, 0);
+        pitchGroup.rotation.z = 0;
+        rollGroup.rotation.x = 0;
+        updateGroundTextureFull();
+        updateSpeed(1);
+
+        // 初始扫描线位置
+        updateScanLineVisual(droneX, -SCAN_HALF, droneX, SCAN_HALF);
+        const initPodPos = getPodWorldPosAdjusted();
+        updateFanPlane(initPodPos, droneX, -SCAN_HALF, droneX, SCAN_HALF);
+        projectionMarker.position.set(droneX, 0.008, 0);
+
+        console.log('🛸 无人机线阵CCD成像3D演示已就绪');
+        console.log('  ✈️ 推扫成像模式 - 无人机飞行推扫');
+        console.log('  🔄 摆扫成像模式 - 悬停侧摆扫描');
+        console.log('  🖱 鼠标拖拽旋转 | 滚轮缩放 | 右键平移');
+        console.log('  ⌨ 按键: 1=推扫 2=摆扫 R=重置 F=默认视角 T=俯视');
+        console.log('  📱 双击画面重置视角');
+
+        // 开始动画循环
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>

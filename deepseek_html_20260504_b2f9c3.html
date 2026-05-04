@@ -1,0 +1,1817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 坐标系管理器</title>
+    <style>
+        :root {
+            --bg: #1a1d23;
+            --panel-bg: #21252b;
+            --text: #e1e4e8;
+            --text-secondary: #959da5;
+            --border: #3a3f4b;
+            --accent: #61afef;
+            --accent-hover: #4d9de0;
+            --danger: #e06c75;
+            --success: #98c379;
+            --warning: #e5c07b;
+            --input-bg: #2c313a;
+            --button-bg: #3a3f4b;
+            --button-hover: #4a5060;
+            --shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            --radius: 8px;
+            --radius-sm: 5px;
+            --transition: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #viewer-container {
+            flex: 1;
+            position: relative;
+            cursor: grab;
+            min-width: 0;
+        }
+        #viewer-container:active {
+            cursor: grabbing;
+        }
+        #viewer-container.gizmo-active {
+            cursor: default;
+        }
+        #three-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #panel {
+            width: 420px;
+            min-width: 420px;
+            background: var(--panel-bg);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-shadow: var(--shadow);
+            z-index: 10;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+        #panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        #panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #panel::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, #252930 0%, #21252b 100%);
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+        .panel-header h2 {
+            font-size: 1.2em;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            color: #fff;
+        }
+        .panel-header .subtitle {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .panel-section {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .panel-section h3 {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--button-bg);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.82em;
+            font-weight: 500;
+            transition: all var(--transition);
+            white-space: nowrap;
+            font-family: inherit;
+        }
+        .btn:hover {
+            background: var(--button-hover);
+            border-color: #555;
+        }
+        .btn.accent {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #1a1d23;
+            font-weight: 600;
+        }
+        .btn.accent:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+        .btn.danger {
+            background: transparent;
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        .btn.danger:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn.small {
+            padding: 4px 10px;
+            font-size: 0.72em;
+            border-radius: 3px;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .coord-list-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+            border: 1px solid transparent;
+            margin-bottom: 4px;
+            font-size: 0.8em;
+        }
+        .coord-list-item:hover {
+            background: #2a2f38;
+            border-color: var(--border);
+        }
+        .coord-list-item.selected {
+            background: #2a3540;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(97, 175, 239, 0.3);
+        }
+        .coord-list-item .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        .coord-list-item .name {
+            flex: 1;
+            font-weight: 500;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .coord-list-item .bold-badge {
+            font-size: 0.65em;
+            padding: 2px 7px;
+            border-radius: 10px;
+            background: #3a3f4b;
+            color: var(--warning);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .coord-list-item .actions {
+            display: flex;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="color"],
+        select {
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 7px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8em;
+            font-family: inherit;
+            transition: border var(--transition);
+        }
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(97, 175, 239, 0.15);
+        }
+        input[type="color"] {
+            width: 32px;
+            height: 32px;
+            padding: 2px;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+        .input-row label {
+            font-size: 0.78em;
+            color: var(--text-secondary);
+            min-width: 40px;
+            flex-shrink: 0;
+        }
+        .input-row .vec3-inputs {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .input-row .vec3-inputs input {
+            width: 60px;
+        }
+        .input-row .vec3-inputs span {
+            font-size: 0.7em;
+            color: var(--text-secondary);
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 440px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            padding: 10px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8em;
+            font-weight: 500;
+            animation: slideIn 0.3s ease;
+            box-shadow: var(--shadow);
+            pointer-events: auto;
+        }
+        .toast.info {
+            background: #2c3e50;
+            border: 1px solid #3a5068;
+            color: #d0e4f7;
+        }
+        .toast.success {
+            background: #2d3a2d;
+            border: 1px solid #3d543d;
+            color: #c3e6c3;
+        }
+        .toast.warning {
+            background: #3d3528;
+            border: 1px solid #5a4d35;
+            color: #f0d9a0;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        .modal {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        .modal h3 {
+            margin-bottom: 16px;
+            font-size: 1em;
+        }
+        .modal .btn-group {
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+
+        .highlight-ring {
+            position: absolute;
+            pointer-events: none;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%,
+            100% {
+                box-shadow: 0 0 8px rgba(97, 175, 239, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(97, 175, 239, 0.9);
+            }
+        }
+
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+            }
+            #panel {
+                width: 100%;
+                min-width: 100%;
+                max-height: 45vh;
+                height: auto;
+            }
+            #viewer-container {
+                height: 55vh;
+            }
+            .toast-container {
+                right: 20px;
+                bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="viewer-container">
+        <canvas id="three-canvas"></canvas>
+    </div>
+
+    <div id="panel">
+        <div class="panel-header">
+            <h2>🧭 3D 坐标系管理器</h2>
+            <div class="subtitle">世界坐标系 · 自定义坐标系 · 矢量线段</div>
+        </div>
+
+        <!-- 坐标系列表 -->
+        <div class="panel-section">
+            <h3>📐 坐标系列表 <span style="font-weight:400;font-size:0.75em;color:var(--text-secondary);">（点击选中）</span></h3>
+            <div id="coord-list" style="max-height:200px;overflow-y:auto;">
+                <div style="color:var(--text-secondary);font-size:0.75em;padding:8px;">世界坐标系（默认）</div>
+            </div>
+            <div class="btn-group" style="margin-top:8px;">
+                <button class="btn small" id="btn-bold-toggle" title="加粗/取消加粗选中的坐标系">⭐ 加粗切换</button>
+                <button class="btn small danger" id="btn-delete-cs" title="删除选中的坐标系">🗑 删除</button>
+            </div>
+        </div>
+
+        <!-- 新建坐标系 -->
+        <div class="panel-section">
+            <h3>🆕 新建坐标系</h3>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:0.78em;color:var(--text-secondary);">名称</label>
+                <input type="text" id="new-cs-name" value="CS1" style="width:120px;margin-left:6px;">
+                <label style="font-size:0.78em;color:var(--text-secondary);margin-left:8px;">颜色</label>
+                <input type="color" id="new-cs-color" value="#61afef" style="vertical-align:middle;">
+            </div>
+            <div class="btn-group" style="flex-wrap:wrap;">
+                <button class="btn small" id="btn-create-default" title="在世界原点创建标准朝向的坐标系">📌 标准新建</button>
+                <button class="btn small" id="btn-create-from-axes" title="以两矢量定义：X轴+辅助矢量→叉积得Z→叉积得Y">✖ 两矢量定义</button>
+                <button class="btn small" id="btn-create-rotate-around" title="选中的坐标系绕指定矢量旋转">🔄 绕轴旋转</button>
+                <button class="btn small" id="btn-create-euler" title="通过欧拉角定义">📐 欧拉角</button>
+                <button class="btn small" id="btn-create-copy" title="复制选中的坐标系并可平移旋转">📋 复制变换</button>
+            </div>
+        </div>
+
+        <!-- 矢量/线段操作 -->
+        <div class="panel-section">
+            <h3>📏 矢量 & 线段操作</h3>
+            <div class="btn-group" style="flex-wrap:wrap;">
+                <button class="btn small" id="btn-new-vector" title="通过平移旋转新建矢量">↗ 新建矢量</button>
+                <button class="btn small" id="btn-new-segment-two-pts" title="连接两点新建线段">🔗 两点连线段</button>
+                <button class="btn small" id="btn-rotate-segment" title="线段绕轴旋转得到新矢量">🔄 线段绕轴旋转</button>
+                <button class="btn small" id="btn-new-point" title="在指定位置新建点">📍 新建点</button>
+            </div>
+        </div>
+
+        <!-- 文件操作 -->
+        <div class="panel-section">
+            <h3>💾 文件操作</h3>
+            <div class="btn-group">
+                <button class="btn small accent" id="btn-save-json">📥 保存JSON</button>
+                <button class="btn small" id="btn-load-json">📤 加载JSON</button>
+                <input type="file" id="file-input" accept=".json" style="display:none;">
+                <button class="btn small" id="btn-reset-all" style="border-color:var(--danger);color:var(--danger);">⚠ 重置全部</button>
+            </div>
+        </div>
+
+        <!-- 选中对象信息 -->
+        <div class="panel-section" id="selected-info" style="display:none;">
+            <h3>ℹ 选中对象信息</h3>
+            <div id="selected-detail" style="font-size:0.75em;color:var(--text-secondary);"></div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+    <div id="modal-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+        // ==================== DOM 元素引用 ====================
+        const container = document.getElementById('viewer-container');
+        const canvas = document.getElementById('three-canvas');
+        const coordListDiv = document.getElementById('coord-list');
+        const selectedInfoDiv = document.getElementById('selected-info');
+        const selectedDetailDiv = document.getElementById('selected-detail');
+        const toastContainer = document.getElementById('toast-container');
+        const modalContainer = document.getElementById('modal-container');
+        const fileInput = document.getElementById('file-input');
+
+        // ==================== Three.js 初始化 ====================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#1a1d23');
+        scene.fog = new THREE.Fog('#1a1d23', 15, 60);
+
+        const camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 200);
+        camera.position.set(8, 5, 10);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+
+        // 灯光
+        const ambientLight = new THREE.AmbientLight('#404060', 1.8);
+        scene.add(ambientLight);
+        const sunLight = new THREE.DirectionalLight('#ffffff', 3.5);
+        sunLight.position.set(15, 25, 10);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 80;
+        sunLight.shadow.camera.left = -20;
+        sunLight.shadow.camera.right = 20;
+        sunLight.shadow.camera.top = 20;
+        sunLight.shadow.camera.bottom = -20;
+        sunLight.shadow.bias = -0.0001;
+        scene.add(sunLight);
+        const fillLight = new THREE.DirectionalLight('#8899cc', 1.2);
+        fillLight.position.set(-8, 3, -6);
+        scene.add(fillLight);
+
+        // 地面
+        const groundGeo = new THREE.PlaneGeometry(60, 60);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: '#2a2d35',
+            roughness: 0.7,
+            metalness: 0.1,
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -6;
+        ground.receiveShadow = true;
+        ground.name = '_ground';
+        scene.add(ground);
+
+        // 网格辅助
+        const gridHelper = new THREE.PolarGridHelper(10, 32, 24, 256, '#3a3f4b', '#2a2f38');
+        gridHelper.position.y = -5.99;
+        scene.add(gridHelper);
+
+        // OrbitControls
+        const orbitControls = new OrbitControls(camera, renderer.domElement);
+        orbitControls.target.set(0, 0, 0);
+        orbitControls.enableDamping = true;
+        orbitControls.dampingFactor = 0.08;
+        orbitControls.minDistance = 1.5;
+        orbitControls.maxDistance = 50;
+        orbitControls.maxPolarAngle = Math.PI * 0.85;
+        orbitControls.update();
+
+        // TransformControls
+        const transformControls = new TransformControls(camera, renderer.domElement);
+        transformControls.addEventListener('dragging-changed', (event) => {
+            orbitControls.enabled = !event.value;
+            if (event.value) {
+                container.classList.add('gizmo-active');
+            } else {
+                container.classList.remove('gizmo-active');
+            }
+        });
+        transformControls.addEventListener('objectChange', () => {
+            if (transformControls.object && transformControls.object.userData._onTransformChange) {
+                transformControls.object.userData._onTransformChange();
+            }
+        });
+        scene.add(transformControls);
+
+        // ==================== 数据模型 ====================
+        // 全局ID计数器
+        let idCounter = 0;
+
+        function generateId() {
+            return 'id_' + (++idCounter) + '_' + Date.now();
+        }
+
+        // 数据存储
+        const dataStore = {
+            points: [], // {id, name, position: {x,y,z}, meshGroup: THREE.Group}
+            segments: [], // {id, name, startPointId, endPointId, color, meshGroup: THREE.Group}
+            coordinateSystems: [], // {id, name, originPointId, xAxis:{x,y,z}, yAxis:{x,y,z}, zAxis:{x,y,z}, color, isBold, meshGroup: THREE.Group}
+            selectedCSId: null,
+            selectedPointId: null,
+            selectedSegmentId: null,
+        };
+
+        // 世界坐标系（始终存在，不在dataStore.coordinateSystems中）
+        const worldCS = {
+            id: 'world',
+            name: '世界坐标系',
+            origin: new THREE.Vector3(0, 0, 0),
+            xAxis: new THREE.Vector3(1, 0, 0),
+            yAxis: new THREE.Vector3(0, 1, 0),
+            zAxis: new THREE.Vector3(0, 0, 1),
+            color: '#8899aa',
+            isBold: false,
+        };
+        const worldCSGroup = new THREE.Group();
+        worldCSGroup.name = 'world-coord-system';
+        scene.add(worldCSGroup);
+        buildCoordinateSystemMesh(worldCSGroup, worldCS.origin, worldCS.xAxis, worldCS.yAxis, worldCS.zAxis,
+            worldCS.color, worldCS.isBold, 2.2);
+
+        // ==================== 3D对象构建函数 ====================
+        function createArrowMesh(color, shaftRadius, shaftLength, coneRadius, coneLength, opacity = 0.9) {
+            const group = new THREE.Group();
+            // 杆
+            const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLength, 16, 1);
+            const shaftMat = new THREE.MeshStandardMaterial({
+                color,
+                roughness: 0.35,
+                metalness: 0.3,
+                transparent: opacity < 1,
+                opacity,
+            });
+            const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+            shaft.position.y = shaftLength / 2;
+            shaft.castShadow = true;
+            group.add(shaft);
+            // 锥体
+            const coneGeo = new THREE.ConeGeometry(coneRadius, coneLength, 16, 1);
+            const coneMat = new THREE.MeshStandardMaterial({
+                color,
+                roughness: 0.3,
+                metalness: 0.35,
+                transparent: opacity < 1,
+                opacity,
+            });
+            const cone = new THREE.Mesh(coneGeo, coneMat);
+            cone.position.y = shaftLength + coneLength / 2;
+            cone.castShadow = true;
+            group.add(cone);
+            return group;
+        }
+
+        function buildCoordinateSystemMesh(group, origin, xAxis, yAxis, zAxis, color, isBold, axisLength = 1.5) {
+            // 清除旧网格
+            while (group.children.length > 0) {
+                const child = group.children[0];
+                disposeObject3D(child);
+                group.remove(child);
+            }
+            const sr = isBold ? 0.06 : 0.03;
+            const cr = isBold ? 0.13 : 0.07;
+            const cl = isBold ? 0.28 : 0.18;
+            const shaftLen = axisLength - cl;
+
+            // X轴
+            const arrowX = createArrowMesh(color, sr, shaftLen, cr, cl);
+            alignArrowToDirection(arrowX, xAxis);
+            arrowX.position.copy(origin);
+            group.add(arrowX);
+
+            // Y轴
+            const arrowY = createArrowMesh(color, sr, shaftLen, cr, cl);
+            alignArrowToDirection(arrowY, yAxis);
+            arrowY.position.copy(origin);
+            group.add(arrowY);
+
+            // Z轴
+            const arrowZ = createArrowMesh(color, sr, shaftLen, cr, cl);
+            alignArrowToDirection(arrowZ, zAxis);
+            arrowZ.position.copy(origin);
+            group.add(arrowZ);
+
+            // 原点小球
+            const sphereGeo = new THREE.SphereGeometry(isBold ? 0.14 : 0.08, 16, 16);
+            const sphereMat = new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.4, emissive: color,
+                emissiveIntensity: 0.4 });
+            const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+            sphere.position.copy(origin);
+            sphere.castShadow = true;
+            group.add(sphere);
+
+            // 轴标签小环（用微小的环来区分轴）
+            const ringGeo = new THREE.TorusGeometry(isBold ? 0.1 : 0.055, isBold ? 0.025 : 0.013, 8, 12);
+            const ringMatX = new THREE.MeshStandardMaterial({ color: '#ff6666', roughness: 0.3, emissive: '#330000',
+                emissiveIntensity: 0.5 });
+            const ringX = new THREE.Mesh(ringGeo, ringMatX);
+            ringX.position.copy(origin.clone().add(xAxis.clone().normalize().multiplyScalar(axisLength * 1.02)));
+            ringX.lookAt(origin.clone().add(xAxis));
+            group.add(ringX);
+
+            const ringMatY = new THREE.MeshStandardMaterial({ color: '#66ff66', roughness: 0.3, emissive: '#003300',
+                emissiveIntensity: 0.5 });
+            const ringY = new THREE.Mesh(ringGeo.clone(), ringMatY);
+            ringY.position.copy(origin.clone().add(yAxis.clone().normalize().multiplyScalar(axisLength * 1.02)));
+            ringY.lookAt(origin.clone().add(yAxis));
+            group.add(ringY);
+
+            const ringMatZ = new THREE.MeshStandardMaterial({ color: '#6688ff', roughness: 0.3, emissive: '#000033',
+                emissiveIntensity: 0.5 });
+            const ringZ = new THREE.Mesh(ringGeo.clone(), ringMatZ);
+            ringZ.position.copy(origin.clone().add(zAxis.clone().normalize().multiplyScalar(axisLength * 1.02)));
+            ringZ.lookAt(origin.clone().add(zAxis));
+            group.add(ringZ);
+        }
+
+        function alignArrowToDirection(arrowGroup, direction) {
+            const dir = direction.clone().normalize();
+            const up = new THREE.Vector3(0, 1, 0);
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(up, dir);
+            arrowGroup.setRotationFromQuaternion(quaternion);
+        }
+
+        function createPointMesh(position, color = '#ffffff') {
+            const group = new THREE.Group();
+            const sphereGeo = new THREE.SphereGeometry(0.09, 16, 16);
+            const sphereMat = new THREE.MeshStandardMaterial({
+                color,
+                roughness: 0.2,
+                metalness: 0.5,
+                emissive: color,
+                emissiveIntensity: 0.5,
+            });
+            const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+            sphere.position.copy(position);
+            sphere.castShadow = true;
+            group.add(sphere);
+            // 光环
+            const ringGeo = new THREE.TorusGeometry(0.13, 0.02, 8, 16);
+            const ringMat = new THREE.MeshStandardMaterial({ color, roughness: 0.2, emissive: color, emissiveIntensity: 0.6 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.copy(position);
+            group.add(ring);
+            group.position.copy(position);
+            return group;
+        }
+
+        function createSegmentMesh(startPos, endPos, color = '#e5c07b') {
+            const group = new THREE.Group();
+            const mid = startPos.clone().add(endPos).multiplyScalar(0.5);
+            const dir = endPos.clone().sub(startPos);
+            const length = dir.length();
+            if (length < 0.001) return group;
+            const dirNorm = dir.normalize();
+            const cylGeo = new THREE.CylinderGeometry(0.025, 0.025, length, 8, 1);
+            const cylMat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.3, emissive: color,
+                emissiveIntensity: 0.25 });
+            const cyl = new THREE.Mesh(cylGeo, cylMat);
+            cyl.position.copy(mid);
+            const up = new THREE.Vector3(0, 1, 0);
+            const quat = new THREE.Quaternion().setFromUnitVectors(up, dirNorm);
+            cyl.setRotationFromQuaternion(quat);
+            cyl.castShadow = true;
+            group.add(cyl);
+            // 端点小球
+            const sGeo = new THREE.SphereGeometry(0.06, 8, 8);
+            const sMat = new THREE.MeshStandardMaterial({ color, roughness: 0.2, emissive: color, emissiveIntensity: 0.4 });
+            const s1 = new THREE.Mesh(sGeo, sMat);
+            s1.position.copy(startPos);
+            group.add(s1);
+            const s2 = new THREE.Mesh(sGeo.clone(), sMat);
+            s2.position.copy(endPos);
+            group.add(s2);
+            return group;
+        }
+
+        function disposeObject3D(obj) {
+            if (!obj) return;
+            obj.traverse((child) => {
+                if (child.geometry && child.geometry !== obj.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+            if (obj.parent) obj.parent.remove(obj);
+        }
+
+        // ==================== 场景同步 ====================
+        function syncAllCSMeshes() {
+            // 世界坐标系
+            buildCoordinateSystemMesh(worldCSGroup, worldCS.origin, worldCS.xAxis, worldCS.yAxis, worldCS.zAxis,
+                worldCS.color, worldCS.isBold, 2.2);
+
+            // 自定义坐标系
+            dataStore.coordinateSystems.forEach(cs => {
+                if (!cs.meshGroup) {
+                    cs.meshGroup = new THREE.Group();
+                    cs.meshGroup.name = 'cs-' + cs.id;
+                    scene.add(cs.meshGroup);
+                }
+                const originPt = dataStore.points.find(p => p.id === cs.originPointId);
+                const origin = originPt ?
+                    new THREE.Vector3(originPt.position.x, originPt.position.y, originPt.position.z) :
+                    new THREE.Vector3(0, 0, 0);
+                const xA = new THREE.Vector3(cs.xAxis.x, cs.xAxis.y, cs.xAxis.z).normalize();
+                const yA = new THREE.Vector3(cs.yAxis.x, cs.yAxis.y, cs.yAxis.z).normalize();
+                const zA = new THREE.Vector3(cs.zAxis.x, cs.zAxis.y, cs.zAxis.z).normalize();
+                buildCoordinateSystemMesh(cs.meshGroup, origin, xA, yA, zA, cs.color, cs.isBold, 1.5);
+            });
+
+            // 清理已删除的坐标系网格
+            const validIds = new Set(dataStore.coordinateSystems.map(cs => cs.id));
+            scene.children.filter(c => c.name && c.name.startsWith('cs-') && !validIds.has(c.name.slice(3))).forEach(c => {
+                disposeObject3D(c);
+                scene.remove(c);
+            });
+        }
+
+        function syncAllPointMeshes() {
+            dataStore.points.forEach(pt => {
+                if (!pt.meshGroup) {
+                    pt.meshGroup = createPointMesh(new THREE.Vector3(pt.position.x, pt.position.y, pt.position.z),
+                        '#ffffff');
+                    pt.meshGroup.name = 'pt-' + pt.id;
+                    scene.add(pt.meshGroup);
+                }
+                pt.meshGroup.position.set(pt.position.x, pt.position.y, pt.position.z);
+                // 更新子对象位置
+                pt.meshGroup.children.forEach(child => {
+                    child.position.set(pt.position.x, pt.position.y, pt.position.z);
+                });
+            });
+            const validPtIds = new Set(dataStore.points.map(p => p.id));
+            scene.children.filter(c => c.name && c.name.startsWith('pt-') && !validPtIds.has(c.name.slice(3)))
+                .forEach(c => {
+                    disposeObject3D(c);
+                    scene.remove(c);
+                });
+        }
+
+        function syncAllSegmentMeshes() {
+            dataStore.segments.forEach(seg => {
+                const startPt = dataStore.points.find(p => p.id === seg.startPointId);
+                const endPt = dataStore.points.find(p => p.id === seg.endPointId);
+                if (!startPt || !endPt) return;
+                if (seg.meshGroup) {
+                    disposeObject3D(seg.meshGroup);
+                    scene.remove(seg.meshGroup);
+                }
+                seg.meshGroup = createSegmentMesh(
+                    new THREE.Vector3(startPt.position.x, startPt.position.y, startPt.position.z),
+                    new THREE.Vector3(endPt.position.x, endPt.position.y, endPt.position.z),
+                    seg.color
+                );
+                seg.meshGroup.name = 'seg-' + seg.id;
+                scene.add(seg.meshGroup);
+            });
+            const validSegIds = new Set(dataStore.segments.map(s => s.id));
+            scene.children.filter(c => c.name && c.name.startsWith('seg-') && !validSegIds.has(c.name.slice(4)))
+                .forEach(c => {
+                    disposeObject3D(c);
+                    scene.remove(c);
+                });
+        }
+
+        function fullSync() {
+            syncAllCSMeshes();
+            syncAllPointMeshes();
+            syncAllSegmentMeshes();
+            updateCoordListUI();
+            updateSelectedInfo();
+        }
+
+        // ==================== UI更新 ====================
+        function updateCoordListUI() {
+            let html = `
+            <div class="coord-list-item${dataStore.selectedCSId === 'world' ? ' selected' : ''}"
+                 data-cs-id="world" style="cursor:pointer;">
+              <span class="color-dot" style="background:${worldCS.color};"></span>
+              <span class="name">🌍 世界坐标系</span>
+              ${worldCS.isBold ? '<span class="bold-badge">加粗</span>' : ''}
+            </div>`;
+            dataStore.coordinateSystems.forEach(cs => {
+                const selected = dataStore.selectedCSId === cs.id ? ' selected' : '';
+                html += `
+            <div class="coord-list-item${selected}" data-cs-id="${cs.id}" style="cursor:pointer;">
+              <span class="color-dot" style="background:${cs.color};"></span>
+              <span class="name">${escapeHtml(cs.name)}</span>
+              ${cs.isBold ? '<span class="bold-badge">加粗</span>' : ''}
+              <span class="actions">
+                <button class="btn small" data-action="goto" data-cs-id="${cs.id}" title="跳转视角">👁</button>
+              </span>
+            </div>`;
+            });
+            coordListDiv.innerHTML = html;
+
+            // 绑定点击事件
+            coordListDiv.querySelectorAll('.coord-list-item[data-cs-id]').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-action]')) return;
+                    const csId = item.dataset.csId;
+                    selectCoordinateSystem(csId);
+                });
+            });
+            coordListDiv.querySelectorAll('[data-action="goto"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const csId = btn.dataset.csId;
+                    gotoCoordinateSystem(csId);
+                });
+            });
+        }
+
+        function updateSelectedInfo() {
+            const selId = dataStore.selectedCSId;
+            if (!selId) {
+                selectedInfoDiv.style.display = 'none';
+                return;
+            }
+            selectedInfoDiv.style.display = 'block';
+            if (selId === 'world') {
+                selectedDetailDiv.innerHTML = `
+              <strong>🌍 世界坐标系</strong><br>
+              原点: (0, 0, 0)<br>
+              X轴: (1, 0, 0)<br>
+              Y轴: (0, 1, 0)<br>
+              Z轴: (0, 0, 1)<br>
+              加粗: ${worldCS.isBold ? '是' : '否'}
+            `;
+            } else {
+                const cs = dataStore.coordinateSystems.find(c => c.id === selId);
+                if (!cs) { selectedInfoDiv.style.display = 'none'; return; }
+                const originPt = dataStore.points.find(p => p.id === cs.originPointId);
+                const ox = originPt ? originPt.position.x.toFixed(3) : '?';
+                const oy = originPt ? originPt.position.y.toFixed(3) : '?';
+                const oz = originPt ? originPt.position.z.toFixed(3) : '?';
+                selectedDetailDiv.innerHTML = `
+              <strong>${escapeHtml(cs.name)}</strong> (${cs.color})<br>
+              原点: (${ox}, ${oy}, ${oz})<br>
+              X轴: (${cs.xAxis.x.toFixed(3)}, ${cs.xAxis.y.toFixed(3)}, ${cs.xAxis.z.toFixed(3)})<br>
+              Y轴: (${cs.yAxis.x.toFixed(3)}, ${cs.yAxis.y.toFixed(3)}, ${cs.yAxis.z.toFixed(3)})<br>
+              Z轴: (${cs.zAxis.x.toFixed(3)}, ${cs.zAxis.y.toFixed(3)}, ${cs.zAxis.z.toFixed(3)})<br>
+              加粗: ${cs.isBold ? '是' : '否'}
+            `;
+            }
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ==================== 选择逻辑 ====================
+        function selectCoordinateSystem(csId) {
+            dataStore.selectedCSId = csId;
+            dataStore.selectedPointId = null;
+            dataStore.selectedSegmentId = null;
+            updateCoordListUI();
+            updateSelectedInfo();
+            // 高亮提示
+            if (csId === 'world') {
+                highlightGroup(worldCSGroup);
+            } else {
+                const cs = dataStore.coordinateSystems.find(c => c.id === csId);
+                if (cs && cs.meshGroup) highlightGroup(cs.meshGroup);
+            }
+        }
+
+        function highlightGroup(group) {
+            // 简单闪烁效果
+            const originalScale = group.scale.clone();
+            const startTime = performance.now();
+
+            function animateHighlight(time) {
+                const elapsed = (time - startTime) / 1000;
+                if (elapsed > 0.6) {
+                    group.scale.copy(originalScale);
+                    return;
+                }
+                const s = 1 + 0.15 * Math.sin(elapsed * Math.PI / 0.6) * (1 - elapsed / 0.6);
+                group.scale.setScalar(s);
+                requestAnimationFrame(animateHighlight);
+            }
+            requestAnimationFrame(animateHighlight);
+        }
+
+        function gotoCoordinateSystem(csId) {
+            let target;
+            if (csId === 'world') {
+                target = new THREE.Vector3(0, 0, 0);
+            } else {
+                const cs = dataStore.coordinateSystems.find(c => c.id === csId);
+                if (!cs) return;
+                const originPt = dataStore.points.find(p => p.id === cs.originPointId);
+                target = originPt ?
+                    new THREE.Vector3(originPt.position.x, originPt.position.y, originPt.position.z) :
+                    new THREE.Vector3(0, 0, 0);
+            }
+            // 平滑移动
+            const startTarget = orbitControls.target.clone();
+            const startTime = performance.now();
+            const duration = 800;
+
+            function animGoTo(time) {
+                const elapsed = time - startTime;
+                const t = Math.min(elapsed / duration, 1.0);
+                const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                orbitControls.target.lerpVectors(startTarget, target, ease);
+                orbitControls.update();
+                if (t < 1) {
+                    requestAnimationFrame(animGoTo);
+                }
+            }
+            requestAnimationFrame(animGoTo);
+            toast('info', `视角跳转中...`);
+        }
+
+        // ==================== Toast & Modal ====================
+        function toast(type, message) {
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            el.textContent = message;
+            toastContainer.appendChild(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transition = 'opacity 0.4s';
+                setTimeout(() => el.remove(), 400);
+            }, 2200);
+        }
+
+        function showModal(title, bodyHtml, onConfirm, confirmText = '确认') {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+            <div class="modal">
+              <h3>${title}</h3>
+              <div class="modal-body">${bodyHtml}</div>
+              <div class="btn-group">
+                <button class="btn small" id="modal-cancel">取消</button>
+                <button class="btn small accent" id="modal-confirm">${confirmText}</button>
+              </div>
+            </div>
+          `;
+            modalContainer.appendChild(overlay);
+            const cancelBtn = overlay.querySelector('#modal-cancel');
+            const confirmBtn = overlay.querySelector('#modal-confirm');
+            const closeModal = () => {
+                overlay.remove();
+            };
+            cancelBtn.addEventListener('click', closeModal);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closeModal();
+            });
+            confirmBtn.addEventListener('click', () => {
+                const result = onConfirm(overlay);
+                if (result !== false) closeModal();
+            });
+            return overlay;
+        }
+
+        function getModalInputs(overlay) {
+            const inputs = overlay.querySelectorAll('input, select');
+            const data = {};
+            inputs.forEach(inp => {
+                if (inp.type === 'number') data[inp.name] = parseFloat(inp.value) || 0;
+                else data[inp.name] = inp.value;
+            });
+            return data;
+        }
+
+        // ==================== 辅助函数 ====================
+        function ensurePointAt(position, name = null) {
+            // 查找是否已有点在容差范围内
+            const pos = new THREE.Vector3(position.x, position.y, position.z);
+            const existing = dataStore.points.find(p => {
+                const dx = p.position.x - pos.x;
+                const dy = p.position.y - pos.y;
+                const dz = p.position.z - pos.z;
+                return Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.001;
+            });
+            if (existing) return existing;
+            const pt = {
+                id: generateId(),
+                name: name || `点_${dataStore.points.length + 1}`,
+                position: { x: pos.x, y: pos.y, z: pos.z },
+                meshGroup: null,
+            };
+            dataStore.points.push(pt);
+            return pt;
+        }
+
+        function getCSOrigin(csId) {
+            if (csId === 'world') return new THREE.Vector3(0, 0, 0);
+            const cs = dataStore.coordinateSystems.find(c => c.id === csId);
+            if (!cs) return new THREE.Vector3(0, 0, 0);
+            const pt = dataStore.points.find(p => p.id === cs.originPointId);
+            return pt ? new THREE.Vector3(pt.position.x, pt.position.y, pt.position.z) : new THREE.Vector3(0, 0, 0);
+        }
+
+        function getCSAxes(csId) {
+            if (csId === 'world') return {
+                x: new THREE.Vector3(1, 0, 0),
+                y: new THREE.Vector3(0, 1, 0),
+                z: new THREE.Vector3(0, 0, 1),
+            };
+            const cs = dataStore.coordinateSystems.find(c => c.id === csId);
+            if (!cs) return { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+            return {
+                x: new THREE.Vector3(cs.xAxis.x, cs.xAxis.y, cs.xAxis.z).normalize(),
+                y: new THREE.Vector3(cs.yAxis.x, cs.yAxis.y, cs.yAxis.z).normalize(),
+                z: new THREE.Vector3(cs.zAxis.x, cs.zAxis.y, cs.zAxis.z).normalize(),
+            };
+        }
+
+        // ==================== 按钮事件处理 ====================
+        // 加粗切换
+        document.getElementById('btn-bold-toggle').addEventListener('click', () => {
+            const selId = dataStore.selectedCSId;
+            if (!selId) { toast('warning', '请先在左侧列表中选择一个坐标系'); return; }
+            if (selId === 'world') {
+                worldCS.isBold = !worldCS.isBold;
+                toast('success', `世界坐标系 ${worldCS.isBold ? '已加粗' : '已取消加粗'}`);
+            } else {
+                const cs = dataStore.coordinateSystems.find(c => c.id === selId);
+                if (!cs) return;
+                cs.isBold = !cs.isBold;
+                toast('success', `"${cs.name}" ${cs.isBold ? '已加粗' : '已取消加粗'}`);
+            }
+            fullSync();
+            if (selId === 'world') selectCoordinateSystem('world');
+            else selectCoordinateSystem(selId);
+        });
+
+        // 删除坐标系
+        document.getElementById('btn-delete-cs').addEventListener('click', () => {
+            const selId = dataStore.selectedCSId;
+            if (!selId || selId === 'world') { toast('warning', '请选择一个自定义坐标系来删除（世界坐标系不可删除）'); return; }
+            const cs = dataStore.coordinateSystems.find(c => c.id === selId);
+            if (!cs) return;
+            const name = cs.name;
+            if (cs.meshGroup) {
+                disposeObject3D(cs.meshGroup);
+                scene.remove(cs.meshGroup);
+            }
+            dataStore.coordinateSystems = dataStore.coordinateSystems.filter(c => c.id !== selId);
+            dataStore.selectedCSId = 'world';
+            toast('success', `已删除坐标系 "${name}"`);
+            fullSync();
+            selectCoordinateSystem('world');
+        });
+
+        // 标准新建
+        document.getElementById('btn-create-default').addEventListener('click', () => {
+            const name = document.getElementById('new-cs-name').value.trim() || 'CS' + (dataStore.coordinateSystems
+                .length + 1);
+            const color = document.getElementById('new-cs-color').value;
+            const originPt = ensurePointAt(new THREE.Vector3(0, 0, 0), name + '_原点');
+            const cs = {
+                id: generateId(),
+                name,
+                originPointId: originPt.id,
+                xAxis: { x: 1, y: 0, z: 0 },
+                yAxis: { x: 0, y: 1, z: 0 },
+                zAxis: { x: 0, y: 0, z: 1 },
+                color,
+                isBold: false,
+                meshGroup: null,
+            };
+            dataStore.coordinateSystems.push(cs);
+            dataStore.selectedCSId = cs.id;
+            toast('success', `已创建坐标系 "${name}"`);
+            fullSync();
+            selectCoordinateSystem(cs.id);
+        });
+
+        // 两矢量定义
+        document.getElementById('btn-create-from-axes').addEventListener('click', () => {
+            const bodyHtml = `
+            <p style="font-size:0.78em;color:var(--text-secondary);margin-bottom:10px;">X轴方向 + 辅助矢量 → 叉积得Z轴 → Z叉乘X得Y轴</p>
+            <div class="input-row"><label>原点X</label><input type="number" name="ox" value="0" step="0.1"></div>
+            <div class="input-row"><label>原点Y</label><input type="number" name="oy" value="0" step="0.1"></div>
+            <div class="input-row"><label>原点Z</label><input type="number" name="oz" value="0" step="0.1"></div>
+            <div class="input-row"><label>X轴X</label><input type="number" name="xx" value="1" step="0.1"></div>
+            <div class="input-row"><label>X轴Y</label><input type="number" name="xy" value="0" step="0.1"></div>
+            <div class="input-row"><label>X轴Z</label><input type="number" name="xz" value="0" step="0.1"></div>
+            <div class="input-row"><label>辅助X</label><input type="number" name="ax" value="0" step="0.1"></div>
+            <div class="input-row"><label>辅助Y</label><input type="number" name="ay" value="0" step="0.1"></div>
+            <div class="input-row"><label>辅助Z</label><input type="number" name="az" value="1" step="0.1"></div>
+          `;
+            showModal('两矢量定义坐标系', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const xAxis = new THREE.Vector3(d.xx, d.xy, d.xz).normalize();
+                const aux = new THREE.Vector3(d.ax, d.ay, d.az).normalize();
+                if (xAxis.length() < 0.0001 || aux.length() < 0.0001) { toast('warning', '矢量不能为零'); return false; }
+                if (Math.abs(xAxis.dot(aux)) > 0.9999) { toast('warning', '两矢量不能平行'); return false; }
+                const zAxis = new THREE.Vector3().crossVectors(xAxis, aux).normalize();
+                const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis).normalize();
+                const name = document.getElementById('new-cs-name').value.trim() || 'CS' + (dataStore
+                    .coordinateSystems.length + 1);
+                const color = document.getElementById('new-cs-color').value;
+                const originPt = ensurePointAt(new THREE.Vector3(d.ox, d.oy, d.oz), name + '_原点');
+                const cs = {
+                    id: generateId(),
+                    name,
+                    originPointId: originPt.id,
+                    xAxis: { x: xAxis.x, y: xAxis.y, z: xAxis.z },
+                    yAxis: { x: yAxis.x, y: yAxis.y, z: yAxis.z },
+                    zAxis: { x: zAxis.x, y: zAxis.y, z: zAxis.z },
+                    color,
+                    isBold: false,
+                    meshGroup: null,
+                };
+                dataStore.coordinateSystems.push(cs);
+                dataStore.selectedCSId = cs.id;
+                toast('success', `已通过两矢量创建坐标系 "${name}"`);
+                fullSync();
+                selectCoordinateSystem(cs.id);
+            });
+        });
+
+        // 绕轴旋转
+        document.getElementById('btn-create-rotate-around').addEventListener('click', () => {
+            const selId = dataStore.selectedCSId;
+            const bodyHtml = `
+            <p style="font-size:0.78em;color:var(--text-secondary);margin-bottom:10px;">将选中的坐标系绕指定轴旋转（在世界原点创建新坐标系）</p>
+            <div class="input-row"><label>旋转轴X</label><input type="number" name="rx" value="0" step="0.1"></div>
+            <div class="input-row"><label>旋转轴Y</label><input type="number" name="ry" value="1" step="0.1"></div>
+            <div class="input-row"><label>旋转轴Z</label><input type="number" name="rz" value="0" step="0.1"></div>
+            <div class="input-row"><label>角度(°)</label><input type="number" name="angle" value="45" step="1"></div>
+            <p style="font-size:0.7em;color:var(--text-secondary);">当前选中: ${selId === 'world' ? '世界坐标系' : (selId ? dataStore.coordinateSystems.find(c=>c.id===selId)?.name||'未知' : '无')}</p>
+          `;
+            showModal('绕轴旋转新建坐标系', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const rotAxis = new THREE.Vector3(d.rx, d.ry, d.rz).normalize();
+                if (rotAxis.length() < 0.0001) { toast('warning', '旋转轴不能为零矢量'); return false; }
+                const angleRad = THREE.MathUtils.degToRad(d.angle);
+                const sourceAxes = selId ? getCSAxes(selId) : getCSAxes('world');
+                const quat = new THREE.Quaternion().setFromAxisAngle(rotAxis, angleRad);
+                const xAxis = sourceAxes.x.clone().applyQuaternion(quat).normalize();
+                const yAxis = sourceAxes.y.clone().applyQuaternion(quat).normalize();
+                const zAxis = sourceAxes.z.clone().applyQuaternion(quat).normalize();
+                const name = document.getElementById('new-cs-name').value.trim() || 'CS_rot' + (dataStore
+                    .coordinateSystems.length + 1);
+                const color = document.getElementById('new-cs-color').value;
+                const originPt = ensurePointAt(new THREE.Vector3(0, 0, 0), name + '_原点');
+                const cs = {
+                    id: generateId(),
+                    name,
+                    originPointId: originPt.id,
+                    xAxis: { x: xAxis.x, y: xAxis.y, z: xAxis.z },
+                    yAxis: { x: yAxis.x, y: yAxis.y, z: yAxis.z },
+                    zAxis: { x: zAxis.x, y: zAxis.y, z: zAxis.z },
+                    color,
+                    isBold: false,
+                    meshGroup: null,
+                };
+                dataStore.coordinateSystems.push(cs);
+                dataStore.selectedCSId = cs.id;
+                toast('success', `已通过旋转创建坐标系 "${name}"`);
+                fullSync();
+                selectCoordinateSystem(cs.id);
+            });
+        });
+
+        // 欧拉角定义
+        document.getElementById('btn-create-euler').addEventListener('click', () => {
+            const bodyHtml = `
+            <p style="font-size:0.78em;color:var(--text-secondary);margin-bottom:10px;">通过欧拉角(绕世界X→Y→Z旋转)定义朝向</p>
+            <div class="input-row"><label>原点X</label><input type="number" name="ox" value="0" step="0.1"></div>
+            <div class="input-row"><label>原点Y</label><input type="number" name="oy" value="0" step="0.1"></div>
+            <div class="input-row"><label>原点Z</label><input type="number" name="oz" value="0" step="0.1"></div>
+            <div class="input-row"><label>绕X(°)</label><input type="number" name="ex" value="0" step="1"></div>
+            <div class="input-row"><label>绕Y(°)</label><input type="number" name="ey" value="0" step="1"></div>
+            <div class="input-row"><label>绕Z(°)</label><input type="number" name="ez" value="0" step="1"></div>
+          `;
+            showModal('欧拉角定义坐标系', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const ex = THREE.MathUtils.degToRad(d.ex);
+                const ey = THREE.MathUtils.degToRad(d.ey);
+                const ez = THREE.MathUtils.degToRad(d.ez);
+                const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(ex, ey, ez, 'XYZ'));
+                const xAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(quat).normalize();
+                const yAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(quat).normalize();
+                const zAxis = new THREE.Vector3(0, 0, 1).applyQuaternion(quat).normalize();
+                const name = document.getElementById('new-cs-name').value.trim() || 'CS_euler' + (dataStore
+                    .coordinateSystems.length + 1);
+                const color = document.getElementById('new-cs-color').value;
+                const originPt = ensurePointAt(new THREE.Vector3(d.ox, d.oy, d.oz), name + '_原点');
+                const cs = {
+                    id: generateId(),
+                    name,
+                    originPointId: originPt.id,
+                    xAxis: { x: xAxis.x, y: xAxis.y, z: xAxis.z },
+                    yAxis: { x: yAxis.x, y: yAxis.y, z: yAxis.z },
+                    zAxis: { x: zAxis.x, y: zAxis.y, z: zAxis.z },
+                    color,
+                    isBold: false,
+                    meshGroup: null,
+                };
+                dataStore.coordinateSystems.push(cs);
+                dataStore.selectedCSId = cs.id;
+                toast('success', `已通过欧拉角创建坐标系 "${name}"`);
+                fullSync();
+                selectCoordinateSystem(cs.id);
+            });
+        });
+
+        // 复制变换
+        document.getElementById('btn-create-copy').addEventListener('click', () => {
+            const selId = dataStore.selectedCSId;
+            if (!selId) { toast('warning', '请先选择一个坐标系作为源'); return; }
+            const bodyHtml = `
+            <p style="font-size:0.78em;color:var(--text-secondary);margin-bottom:10px;">复制选中坐标系并平移旋转</p>
+            <div class="input-row"><label>平移X</label><input type="number" name="dx" value="0" step="0.1"></div>
+            <div class="input-row"><label>平移Y</label><input type="number" name="dy" value="0" step="0.1"></div>
+            <div class="input-row"><label>平移Z</label><input type="number" name="dz" value="0" step="0.1"></div>
+            <div class="input-row"><label>绕X旋转(°)</label><input type="number" name="rx" value="0" step="1"></div>
+            <div class="input-row"><label>绕Y旋转(°)</label><input type="number" name="ry" value="0" step="1"></div>
+            <div class="input-row"><label>绕Z旋转(°)</label><input type="number" name="rz" value="0" step="1"></div>
+          `;
+            showModal('复制并变换坐标系', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const sourceAxes = getCSAxes(selId);
+                const sourceOrigin = getCSOrigin(selId);
+                const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+                    THREE.MathUtils.degToRad(d.rx),
+                    THREE.MathUtils.degToRad(d.ry),
+                    THREE.MathUtils.degToRad(d.rz),
+                    'XYZ'
+                ));
+                const xAxis = sourceAxes.x.clone().applyQuaternion(quat).normalize();
+                const yAxis = sourceAxes.y.clone().applyQuaternion(quat).normalize();
+                const zAxis = sourceAxes.z.clone().applyQuaternion(quat).normalize();
+                const newOrigin = sourceOrigin.clone().add(new THREE.Vector3(d.dx, d.dy, d.dz));
+                const name = document.getElementById('new-cs-name').value.trim() || 'CS_copy' + (dataStore
+                    .coordinateSystems.length + 1);
+                const color = document.getElementById('new-cs-color').value;
+                const originPt = ensurePointAt(newOrigin, name + '_原点');
+                const cs = {
+                    id: generateId(),
+                    name,
+                    originPointId: originPt.id,
+                    xAxis: { x: xAxis.x, y: xAxis.y, z: xAxis.z },
+                    yAxis: { x: yAxis.x, y: yAxis.y, z: yAxis.z },
+                    zAxis: { x: zAxis.x, y: zAxis.y, z: zAxis.z },
+                    color,
+                    isBold: false,
+                    meshGroup: null,
+                };
+                dataStore.coordinateSystems.push(cs);
+                dataStore.selectedCSId = cs.id;
+                toast('success', `已通过复制变换创建坐标系 "${name}"`);
+                fullSync();
+                selectCoordinateSystem(cs.id);
+            });
+        });
+
+        // 新建矢量
+        document.getElementById('btn-new-vector').addEventListener('click', () => {
+            const bodyHtml = `
+            <p style="font-size:0.78em;color:var(--text-secondary);margin-bottom:10px;">从原点出发的矢量（作为命名点存储）</p>
+            <div class="input-row"><label>起点X</label><input type="number" name="sx" value="0" step="0.1"></div>
+            <div class="input-row"><label>起点Y</label><input type="number" name="sy" value="0" step="0.1"></div>
+            <div class="input-row"><label>起点Z</label><input type="number" name="sz" value="0" step="0.1"></div>
+            <div class="input-row"><label>方向X</label><input type="number" name="dx" value="1" step="0.1"></div>
+            <div class="input-row"><label>方向Y</label><input type="number" name="dy" value="0" step="0.1"></div>
+            <div class="input-row"><label>方向Z</label><input type="number" name="dz" value="0" step="0.1"></div>
+            <div class="input-row"><label>长度</label><input type="number" name="len" value="2" step="0.1" min="0.1"></div>
+            <div class="input-row"><label>颜色</label><input type="color" name="segcolor" value="#e5c07b"></div>
+          `;
+            showModal('新建矢量/线段', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const start = new THREE.Vector3(d.sx, d.sy, d.sz);
+                const dir = new THREE.Vector3(d.dx, d.dy, d.dz).normalize();
+                if (dir.length() < 0.0001) { toast('warning', '方向不能为零矢量'); return false; }
+                const end = start.clone().add(dir.clone().multiplyScalar(d.len));
+                const startPt = ensurePointAt(start, '矢量起点');
+                const endPt = ensurePointAt(end, '矢量终点');
+                const seg = {
+                    id: generateId(),
+                    name: '矢量_' + (dataStore.segments.length + 1),
+                    startPointId: startPt.id,
+                    endPointId: endPt.id,
+                    color: d.segcolor || '#e5c07b',
+                    meshGroup: null,
+                };
+                dataStore.segments.push(seg);
+                toast('success', `已创建矢量线段`);
+                fullSync();
+            });
+        });
+
+        // 连接两点新建线段
+        document.getElementById('btn-new-segment-two-pts').addEventListener('click', () => {
+            const pointOptions = dataStore.points.map(p =>
+                `<option value="${p.id}">${escapeHtml(p.name)} (${p.position.x.toFixed(1)},${p.position.y.toFixed(1)},${p.position.z.toFixed(1)})</option>`
+            ).join('');
+            if (dataStore.points.length < 2) {
+                toast('warning', '至少需要两个点才能连线段。请先创建点或坐标系。');
+                return;
+            }
+            const bodyHtml = `
+            <div class="input-row"><label>起点</label><select name="pt1">${pointOptions}</select></div>
+            <div class="input-row"><label>终点</label><select name="pt2">${pointOptions}</select></div>
+            <div class="input-row"><label>颜色</label><input type="color" name="segcolor" value="#e5c07b"></div>
+          `;
+            showModal('连接两点新建线段', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                if (d.pt1 === d.pt2) { toast('warning', '请选择两个不同的点'); return false; }
+                const seg = {
+                    id: generateId(),
+                    name: '线段_' + (dataStore.segments.length + 1),
+                    startPointId: d.pt1,
+                    endPointId: d.pt2,
+                    color: d.segcolor || '#e5c07b',
+                    meshGroup: null,
+                };
+                dataStore.segments.push(seg);
+                toast('success', `已创建线段`);
+                fullSync();
+            });
+        });
+
+        // 线段绕轴旋转
+        document.getElementById('btn-rotate-segment').addEventListener('click', () => {
+            const segOptions = dataStore.segments.map(s =>
+                `<option value="${s.id}">${escapeHtml(s.name)}</option>`
+            ).join('');
+            if (dataStore.segments.length === 0) {
+                toast('warning', '没有可用的线段。请先创建线段。');
+                return;
+            }
+            const bodyHtml = `
+            <p style="font-size:0.78em;color:var(--text-secondary);margin-bottom:10px;">线段终点绕轴旋转，得到新矢量（新线段从原起点到旋转后的终点）</p>
+            <div class="input-row"><label>线段</label><select name="seg">${segOptions}</select></div>
+            <div class="input-row"><label>轴X</label><input type="number" name="ax" value="0" step="0.1"></div>
+            <div class="input-row"><label>轴Y</label><input type="number" name="ay" value="1" step="0.1"></div>
+            <div class="input-row"><label>轴Z</label><input type="number" name="az" value="0" step="0.1"></div>
+            <div class="input-row"><label>角度(°)</label><input type="number" name="angle" value="90" step="1"></div>
+            <div class="input-row"><label>颜色</label><input type="color" name="segcolor" value="#98c379"></div>
+          `;
+            showModal('线段绕轴旋转', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const seg = dataStore.segments.find(s => s.id === d.seg);
+                if (!seg) { toast('warning', '线段不存在'); return false; }
+                const startPt = dataStore.points.find(p => p.id === seg.startPointId);
+                const endPt = dataStore.points.find(p => p.id === seg.endPointId);
+                if (!startPt || !endPt) { toast('warning', '线段端点不存在'); return false; }
+                const rotAxis = new THREE.Vector3(d.ax, d.ay, d.az).normalize();
+                if (rotAxis.length() < 0.0001) { toast('warning', '旋转轴不能为零矢量'); return false; }
+                const angleRad = THREE.MathUtils.degToRad(d.angle);
+                const startVec = new THREE.Vector3(startPt.position.x, startPt.position.y, startPt.position.z);
+                const endVec = new THREE.Vector3(endPt.position.x, endPt.position.y, endPt.position.z);
+                const relVec = endVec.clone().sub(startVec);
+                const quat = new THREE.Quaternion().setFromAxisAngle(rotAxis, angleRad);
+                const newRelVec = relVec.clone().applyQuaternion(quat);
+                const newEnd = startVec.clone().add(newRelVec);
+                const newEndPt = ensurePointAt(newEnd, '旋转终点');
+                const newSeg = {
+                    id: generateId(),
+                    name: '旋转线段_' + (dataStore.segments.length + 1),
+                    startPointId: seg.startPointId,
+                    endPointId: newEndPt.id,
+                    color: d.segcolor || '#98c379',
+                    meshGroup: null,
+                };
+                dataStore.segments.push(newSeg);
+                toast('success', `已创建旋转后的线段`);
+                fullSync();
+            });
+        });
+
+        // 新建点
+        document.getElementById('btn-new-point').addEventListener('click', () => {
+            const bodyHtml = `
+            <div class="input-row"><label>X</label><input type="number" name="px" value="0" step="0.1"></div>
+            <div class="input-row"><label>Y</label><input type="number" name="py" value="0" step="0.1"></div>
+            <div class="input-row"><label>Z</label><input type="number" name="pz" value="0" step="0.1"></div>
+            <div class="input-row"><label>名称</label><input type="text" name="pname" value="新点"></div>
+          `;
+            showModal('新建点', bodyHtml, (overlay) => {
+                const d = getModalInputs(overlay);
+                const pt = ensurePointAt(new THREE.Vector3(d.px, d.py, d.pz), d.pname || '新点');
+                pt.name = d.pname || pt.name;
+                toast('success', `已创建点 "${pt.name}"`);
+                fullSync();
+            });
+        });
+
+        // 保存JSON
+        document.getElementById('btn-save-json').addEventListener('click', () => {
+            const exportData = {
+                version: '1.0',
+                timestamp: new Date().toISOString(),
+                points: dataStore.points.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    position: p.position,
+                })),
+                segments: dataStore.segments.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    startPointId: s.startPointId,
+                    endPointId: s.endPointId,
+                    color: s.color,
+                })),
+                coordinateSystems: dataStore.coordinateSystems.map(cs => ({
+                    id: cs.id,
+                    name: cs.name,
+                    originPointId: cs.originPointId,
+                    xAxis: cs.xAxis,
+                    yAxis: cs.yAxis,
+                    zAxis: cs.zAxis,
+                    color: cs.color,
+                    isBold: cs.isBold,
+                })),
+            };
+            const jsonStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'coordinate_systems_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            toast('success', 'JSON文件已保存');
+        });
+
+        // 加载JSON
+        document.getElementById('btn-load-json').addEventListener('click', () => {
+            fileInput.click();
+        });
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const importData = JSON.parse(ev.target.result);
+                    loadFromJSON(importData);
+                    toast('success', 'JSON文件已加载');
+                } catch (err) {
+                    toast('warning', 'JSON解析失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            fileInput.value = '';
+        });
+
+        function loadFromJSON(data) {
+            // 清除现有数据
+            dataStore.coordinateSystems.forEach(cs => {
+                if (cs.meshGroup) { disposeObject3D(cs.meshGroup);
+                    scene.remove(cs.meshGroup); }
+            });
+            dataStore.segments.forEach(seg => {
+                if (seg.meshGroup) { disposeObject3D(seg.meshGroup);
+                    scene.remove(seg.meshGroup); }
+            });
+            dataStore.points.forEach(pt => {
+                if (pt.meshGroup) { disposeObject3D(pt.meshGroup);
+                    scene.remove(pt.meshGroup); }
+            });
+            dataStore.points = [];
+            dataStore.segments = [];
+            dataStore.coordinateSystems = [];
+            dataStore.selectedCSId = 'world';
+            dataStore.selectedPointId = null;
+            dataStore.selectedSegmentId = null;
+            idCounter = 0;
+
+            // 导入点
+            if (data.points && Array.isArray(data.points)) {
+                data.points.forEach(p => {
+                    const pt = {
+                        id: p.id || generateId(),
+                        name: p.name || '点',
+                        position: {
+                            x: p.position?.x ?? 0,
+                            y: p.position?.y ?? 0,
+                            z: p.position?.z ?? 0,
+                        },
+                        meshGroup: null,
+                    };
+                    if (parseInt(pt.id.split('_')[1]) > idCounter) idCounter = parseInt(pt.id.split('_')[1]);
+                    dataStore.points.push(pt);
+                });
+            }
+            // 导入线段
+            if (data.segments && Array.isArray(data.segments)) {
+                data.segments.forEach(s => {
+                    const seg = {
+                        id: s.id || generateId(),
+                        name: s.name || '线段',
+                        startPointId: s.startPointId,
+                        endPointId: s.endPointId,
+                        color: s.color || '#e5c07b',
+                        meshGroup: null,
+                    };
+                    if (parseInt(seg.id.split('_')[1]) > idCounter) idCounter = parseInt(seg.id.split('_')[1]);
+                    dataStore.segments.push(seg);
+                });
+            }
+            // 导入坐标系
+            if (data.coordinateSystems && Array.isArray(data.coordinateSystems)) {
+                data.coordinateSystems.forEach(cs => {
+                    const newCS = {
+                        id: cs.id || generateId(),
+                        name: cs.name || 'CS',
+                        originPointId: cs.originPointId,
+                        xAxis: { x: cs.xAxis?.x ?? 1, y: cs.xAxis?.y ?? 0, z: cs.xAxis?.z ?? 0 },
+                        yAxis: { x: cs.yAxis?.x ?? 0, y: cs.yAxis?.y ?? 1, z: cs.yAxis?.z ?? 0 },
+                        zAxis: { x: cs.zAxis?.x ?? 0, y: cs.zAxis?.y ?? 0, z: cs.zAxis?.z ?? 1 },
+                        color: cs.color || '#61afef',
+                        isBold: cs.isBold || false,
+                        meshGroup: null,
+                    };
+                    if (parseInt(newCS.id.split('_')[1]) > idCounter) idCounter = parseInt(newCS.id.split('_')[1]);
+                    dataStore.coordinateSystems.push(newCS);
+                });
+            }
+            idCounter += 10;
+            fullSync();
+            selectCoordinateSystem('world');
+        }
+
+        // 重置全部
+        document.getElementById('btn-reset-all').addEventListener('click', () => {
+            if (!confirm('确定要重置全部数据吗？这将删除所有自定义坐标系、点和线段。世界坐标系将保留。')) return;
+            dataStore.coordinateSystems.forEach(cs => {
+                if (cs.meshGroup) { disposeObject3D(cs.meshGroup);
+                    scene.remove(cs.meshGroup); }
+            });
+            dataStore.segments.forEach(seg => {
+                if (seg.meshGroup) { disposeObject3D(seg.meshGroup);
+                    scene.remove(seg.meshGroup); }
+            });
+            dataStore.points.forEach(pt => {
+                if (pt.meshGroup) { disposeObject3D(pt.meshGroup);
+                    scene.remove(pt.meshGroup); }
+            });
+            dataStore.points = [];
+            dataStore.segments = [];
+            dataStore.coordinateSystems = [];
+            dataStore.selectedCSId = 'world';
+            dataStore.selectedPointId = null;
+            dataStore.selectedSegmentId = null;
+            worldCS.isBold = false;
+            idCounter = 0;
+            fullSync();
+            selectCoordinateSystem('world');
+            toast('success', '已重置全部数据');
+        });
+
+        // ==================== Raycaster 点击选择 ====================
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Points.threshold = 0.3;
+        raycaster.params.Line = { threshold: 0.2 };
+
+        canvas.addEventListener('click', (event) => {
+            // 如果TransformControls正在使用，忽略
+            if (transformControls.dragging) return;
+            // 检查是否是拖拽（移动了鼠标）
+            if (event.target !== canvas) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            raycaster.setFromCamera(mouse, camera);
+
+            // 收集所有可选择的坐标系组
+            const allCSGroups = [];
+            if (worldCSGroup) allCSGroups.push({ group: worldCSGroup, csId: 'world' });
+            dataStore.coordinateSystems.forEach(cs => {
+                if (cs.meshGroup) allCSGroups.push({ group: cs.meshGroup, csId: cs.id });
+            });
+
+            const intersects = [];
+            allCSGroups.forEach(({ group, csId }) => {
+                const children = [];
+                group.traverse(c => { if (c.isMesh) children.push(c); });
+                const hits = raycaster.intersectObjects(children, false);
+                if (hits.length > 0) {
+                    intersects.push({ csId, distance: hits[0].distance, hit: hits[0] });
+                }
+            });
+
+            if (intersects.length > 0) {
+                intersects.sort((a, b) => a.distance - b.distance);
+                const closest = intersects[0];
+                selectCoordinateSystem(closest.csId);
+            }
+        });
+
+        // ==================== 键盘快捷键 ====================
+        window.addEventListener('keydown', (e) => {
+            switch (e.key.toLowerCase()) {
+                case 'g':
+                    if (!e.ctrlKey && !e.metaKey && document.activeElement === document.body) {
+                        if (dataStore.selectedCSId && dataStore.selectedCSId !== 'world') {
+                            gotoCoordinateSystem(dataStore.selectedCSId);
+                        } else if (dataStore.selectedCSId === 'world') {
+                            gotoCoordinateSystem('world');
+                        }
+                    }
+                    break;
+                case 'b':
+                    if (!e.ctrlKey && !e.metaKey && document.activeElement === document.body) {
+                        document.getElementById('btn-bold-toggle').click();
+                    }
+                    break;
+                case 'delete':
+                    if (!e.ctrlKey && !e.metaKey && document.activeElement === document.body) {
+                        if (dataStore.selectedCSId && dataStore.selectedCSId !== 'world') {
+                            document.getElementById('btn-delete-cs').click();
+                        }
+                    }
+                    break;
+                case 'escape':
+                    transformControls.detach();
+                    orbitControls.enabled = true;
+                    container.classList.remove('gizmo-active');
+                    break;
+            }
+        });
+
+        // ==================== 窗口调整 ====================
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // ==================== 渲染循环 ====================
+        function animate() {
+            requestAnimationFrame(animate);
+            orbitControls.update();
+            // 更新点网格位置（如果有动画需求）
+            renderer.render(scene, camera);
+        }
+
+        // ==================== 初始化和演示 ====================
+        function initDemo() {
+            // 创建一些演示用的坐标系和点
+            const pt1 = ensurePointAt(new THREE.Vector3(3, 0, 0), '演示点A');
+            const pt2 = ensurePointAt(new THREE.Vector3(3, 2, 1), '演示点B');
+            const pt3 = ensurePointAt(new THREE.Vector3(0, 0, 3), '演示点C');
+
+            // 演示线段
+            const seg1 = {
+                id: generateId(),
+                name: '演示线段AB',
+                startPointId: pt1.id,
+                endPointId: pt2.id,
+                color: '#e5c07b',
+                meshGroup: null,
+            };
+            dataStore.segments.push(seg1);
+
+            // 演示坐标系1：在(3,0,0)处，绕Z轴旋转30度
+            const quat1 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(
+                30));
+            const xA1 = new THREE.Vector3(1, 0, 0).applyQuaternion(quat1).normalize();
+            const yA1 = new THREE.Vector3(0, 1, 0).applyQuaternion(quat1).normalize();
+            const zA1 = new THREE.Vector3(0, 0, 1).applyQuaternion(quat1).normalize();
+            const cs1 = {
+                id: generateId(),
+                name: '演示CS_旋转30°',
+                originPointId: pt1.id,
+                xAxis: { x: xA1.x, y: xA1.y, z: xA1.z },
+                yAxis: { x: yA1.x, y: yA1.y, z: yA1.z },
+                zAxis: { x: zA1.x, y: zA1.y, z: zA1.z },
+                color: '#e06c75',
+                isBold: false,
+                meshGroup: null,
+            };
+            dataStore.coordinateSystems.push(cs1);
+
+            // 演示坐标系2：在(0,0,3)处，绕X轴旋转45度
+            const quat2 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(
+                45));
+            const xA2 = new THREE.Vector3(1, 0, 0).applyQuaternion(quat2).normalize();
+            const yA2 = new THREE.Vector3(0, 1, 0).applyQuaternion(quat2).normalize();
+            const zA2 = new THREE.Vector3(0, 0, 1).applyQuaternion(quat2).normalize();
+            const cs2 = {
+                id: generateId(),
+                name: '演示CS_绕X45°',
+                originPointId: pt3.id,
+                xAxis: { x: xA2.x, y: xA2.y, z: xA2.z },
+                yAxis: { x: yA2.x, y: yA2.y, z: yA2.z },
+                zAxis: { x: zA2.x, y: zA2.y, z: zA2.z },
+                color: '#61afef',
+                isBold: true,
+                meshGroup: null,
+            };
+            dataStore.coordinateSystems.push(cs2);
+
+            fullSync();
+            selectCoordinateSystem('world');
+            toast('info', '欢迎使用3D坐标系管理器！点击坐标系可选择，右侧面板进行操作。快捷键: G=跳转 B=加粗 Delete=删除');
+        }
+
+        initDemo();
+        animate();
+
+        console.log('🧭 3D坐标系管理器已就绪');
+        console.log('  - 世界坐标系: 灰色箭头');
+        console.log('  - 自定义坐标系: 彩色箭头（每个坐标系三轴同色）');
+        console.log('  - 轴标签环: X=红环 Y=绿环 Z=蓝环');
+        console.log('  - 点击3D视图中的坐标系可选择');
+        console.log('  - 快捷键: G=跳转到选中坐标系 B=切换加粗 Delete=删除选中坐标系');
+        console.log('  - 支持JSON导入导出');
+        console.log('  - 支持多种坐标系定义方式');
+    </script>
+</body>
+</html>
