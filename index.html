@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D坐标系可视化</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #canvas-container {
+            flex: 1;
+            position: relative;
+        }
+        #sidebar {
+            width: 350px;
+            background: #f5f5f5;
+            padding: 15px;
+            overflow-y: auto;
+            border-left: 1px solid #ddd;
+        }
+        .section {
+            background: white;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .section h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 6px;
+        }
+        .form-group {
+            margin-bottom: 8px;
+        }
+        label {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 12px;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .coord-item {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            background: #fafafa;
+        }
+        .coord-item.selected {
+            border-color: #007bff;
+            background: #e9f5ff;
+        }
+        .coord-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .coord-item-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .coord-item-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .coord-item-details {
+            font-size: 11px;
+            color: #666;
+        }
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+        .col {
+            flex: 1;
+        }
+        .small-btn {
+            padding: 2px 6px;
+            font-size: 10px;
+        }
+        .angle-matrix {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr 1fr;
+            gap: 4px;
+            font-size: 11px;
+        }
+        .angle-matrix .header {
+            text-align: center;
+            font-weight: bold;
+            color: #666;
+        }
+        .angle-matrix .row-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #666;
+        }
+        .angle-matrix input {
+            padding: 3px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="sidebar">
+        <div class="section">
+            <h3>坐标系列表</h3>
+            <div id="coord-list"></div>
+        </div>
+
+        <div class="section">
+            <h3>创建新坐标系</h3>
+            <div class="form-group">
+                <label>坐标系名称</label>
+                <input type="text" id="new-name" placeholder="例如: CoordA">
+            </div>
+            <div class="form-group">
+                <label>参考坐标系</label>
+                <select id="ref-coord"></select>
+            </div>
+            <div class="form-group">
+                <label>原点位置 (相对于参考坐标系)</label>
+                <div class="row">
+                    <div class="col"><input type="number" id="pos-x" value="0" step="0.1" placeholder="X"></div>
+                    <div class="col"><input type="number" id="pos-y" value="0" step="0.1" placeholder="Y"></div>
+                    <div class="col"><input type="number" id="pos-z" value="0" step="0.1" placeholder="Z"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>轴夹角矩阵 (行:新坐标系轴, 列:参考坐标系轴)</label>
+                <div class="angle-matrix">
+                    <div></div>
+                    <div class="header">X'</div>
+                    <div class="header">Y'</div>
+                    <div class="header">Z'</div>
+                    <div class="row-label">X</div>
+                    <div><input type="number" id="angle-xx" value="0" step="1"></div>
+                    <div><input type="number" id="angle-xy" value="90" step="1"></div>
+                    <div><input type="number" id="angle-xz" value="90" step="1"></div>
+                    <div class="row-label">Y</div>
+                    <div><input type="number" id="angle-yx" value="90" step="1"></div>
+                    <div><input type="number" id="angle-yy" value="0" step="1"></div>
+                    <div><input type="number" id="angle-yz" value="90" step="1"></div>
+                    <div class="row-label">Z</div>
+                    <div><input type="number" id="angle-zx" value="90" step="1"></div>
+                    <div><input type="number" id="angle-zy" value="90" step="1"></div>
+                    <div><input type="number" id="angle-zz" value="0" step="1"></div>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="createCoordinate()">创建坐标系</button>
+        </div>
+
+        <div class="section" id="edit-section" style="display: none;">
+            <h3>编辑选中坐标系</h3>
+            <div class="form-group">
+                <label>名称</label>
+                <input type="text" id="edit-name">
+            </div>
+            <div class="form-group">
+                <label>原点位置 (相对于参考坐标系)</label>
+                <div class="row">
+                    <div class="col"><input type="number" id="edit-pos-x" step="0.1"></div>
+                    <div class="col"><input type="number" id="edit-pos-y" step="0.1"></div>
+                    <div class="col"><input type="number" id="edit-pos-z" step="0.1"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>轴夹角矩阵 (行:新坐标系轴, 列:参考坐标系轴)</label>
+                <div class="angle-matrix">
+                    <div></div>
+                    <div class="header">X'</div>
+                    <div class="header">Y'</div>
+                    <div class="header">Z'</div>
+                    <div class="row-label">X</div>
+                    <div><input type="number" id="edit-angle-xx" step="1"></div>
+                    <div><input type="number" id="edit-angle-xy" step="1"></div>
+                    <div><input type="number" id="edit-angle-xz" step="1"></div>
+                    <div class="row-label">Y</div>
+                    <div><input type="number" id="edit-angle-yx" step="1"></div>
+                    <div><input type="number" id="edit-angle-yy" step="1"></div>
+                    <div><input type="number" id="edit-angle-yz" step="1"></div>
+                    <div class="row-label">Z</div>
+                    <div><input type="number" id="edit-angle-zx" step="1"></div>
+                    <div><input type="number" id="edit-angle-zy" step="1"></div>
+                    <div><input type="number" id="edit-angle-zz" step="1"></div>
+                </div>
+            </div>
+            <button class="btn-success" onclick="updateCoordinate()">保存修改</button>
+            <button class="btn-secondary" onclick="cancelEdit()">取消</button>
+        </div>
+
+        <div class="section">
+            <h3>保存/加载</h3>
+            <button class="btn-primary" onclick="saveToFile()">保存到文件</button>
+            <button class="btn-secondary" onclick="document.getElementById('load-file').click()">从文件加载</button>
+            <input type="file" id="load-file" style="display: none;" accept=".json" onchange="loadFromFile(event)">
+        </div>
+
+        <div class="section">
+            <h3>视图控制</h3>
+            <button class="btn-secondary" onclick="resetCamera()">重置视角</button>
+            <button class="btn-secondary" onclick="toggleGrid()">切换网格</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, controls;
+        let coordinates = {};
+        let selectedCoordId = null;
+        let showGrid = true;
+        let gridHelper = null;
+
+        const WORLD_COORD_ID = 'world';
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(5, 5, 5);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            gridHelper = new THREE.GridHelper(10, 10, 0x888888, 0xcccccc);
+            scene.add(gridHelper);
+
+            addWorldCoordinate();
+
+            setupControls();
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+
+            updateCoordList();
+            updateRefCoordSelect();
+        }
+
+        function setupControls() {
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            let spherical = { theta: Math.PI / 4, phi: Math.PI / 4, radius: 10 };
+            let target = new THREE.Vector3(0, 0, 0);
+
+            function updateCamera() {
+                camera.position.x = target.x + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+                camera.position.y = target.y + spherical.radius * Math.cos(spherical.phi);
+                camera.position.z = target.z + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+                camera.lookAt(target);
+            }
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                spherical.theta -= deltaX * 0.01;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - deltaY * 0.01));
+                updateCamera();
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => isDragging = false);
+            renderer.domElement.addEventListener('mouseleave', () => isDragging = false);
+
+            renderer.domElement.addEventListener('wheel', (e) => {
+                spherical.radius = Math.max(2, Math.min(50, spherical.radius + e.deltaY * 0.01));
+                updateCamera();
+            });
+
+            updateCamera();
+        }
+
+        function createAxes(size = 1) {
+            const group = new THREE.Group();
+            const axisData = [
+                { dir: new THREE.Vector3(1, 0, 0), color: 0xff0000, label: 'X' },
+                { dir: new THREE.Vector3(0, 1, 0), color: 0x00ff00, label: 'Y' },
+                { dir: new THREE.Vector3(0, 0, 1), color: 0x0000ff, label: 'Z' }
+            ];
+
+            axisData.forEach(axis => {
+                const geometry = new THREE.BufferGeometry();
+                const points = [new THREE.Vector3(0, 0, 0), axis.dir.clone().multiplyScalar(size)];
+                geometry.setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: axis.color, linewidth: 2 });
+                const line = new THREE.Line(geometry, material);
+                group.add(line);
+
+                const arrowGeom = new THREE.ConeGeometry(0.05, 0.15, 8);
+                const arrowMat = new THREE.MeshLambertMaterial({ color: axis.color });
+                const arrow = new THREE.Mesh(arrowGeom, arrowMat);
+                arrow.position.copy(axis.dir.clone().multiplyScalar(size));
+                arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.dir);
+                group.add(arrow);
+            });
+
+            const sphereGeom = new THREE.SphereGeometry(0.05, 8, 8);
+            const sphereMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const origin = new THREE.Mesh(sphereGeom, sphereMat);
+            group.add(origin);
+
+            return group;
+        }
+
+        function addWorldCoordinate() {
+            const axes = createAxes(2);
+            scene.add(axes);
+            coordinates[WORLD_COORD_ID] = {
+                id: WORLD_COORD_ID,
+                name: '世界坐标系',
+                refId: null,
+                position: { x: 0, y: 0, z: 0 },
+                angles: { xx: 0, xy: 90, xz: 90, yx: 90, yy: 0, yz: 90, zx: 90, zy: 90, zz: 0 },
+                object3D: axes,
+                isWorld: true
+            };
+        }
+
+        function generateId() {
+            return 'coord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function anglesToRotationMatrix(angles) {
+            const deg2rad = Math.PI / 180;
+            const R = [
+                [Math.cos(angles.xx * deg2rad), Math.cos(angles.xy * deg2rad), Math.cos(angles.xz * deg2rad)],
+                [Math.cos(angles.yx * deg2rad), Math.cos(angles.yy * deg2rad), Math.cos(angles.yz * deg2rad)],
+                [Math.cos(angles.zx * deg2rad), Math.cos(angles.zy * deg2rad), Math.cos(angles.zz * deg2rad)]
+            ];
+            return orthogonalizeRotationMatrix(R);
+        }
+
+        function orthogonalizeRotationMatrix(R) {
+            const A = R.map(row => [...row]);
+
+            const transposeAndMultiply = (m) => {
+                const result = [[0,0,0],[0,0,0],[0,0,0]];
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        for (let k = 0; k < 3; k++) {
+                            result[i][j] += m[k][i] * m[k][j];
+                        }
+                    }
+                }
+                return result;
+            };
+
+            for (let iter = 0; iter < 20; iter++) {
+                const AT = [[A[0][0], A[1][0], A[2][0]], [A[0][1], A[1][1], A[2][1]], [A[0][2], A[1][2], A[2][2]]];
+                const ATA = [[0,0,0],[0,0,0],[0,0,0]];
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        for (let k = 0; k < 3; k++) {
+                            ATA[i][j] += AT[i][k] * A[k][j];
+                        }
+                    }
+                }
+
+                const invATA = invert3x3(ATA);
+                if (!invATA) break;
+
+                const Rnew = [[0,0,0],[0,0,0],[0,0,0]];
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        for (let k = 0; k < 3; k++) {
+                            Rnew[i][j] += A[i][k] * invATA[k][j];
+                        }
+                    }
+                }
+
+                let diff = 0;
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        diff += Math.abs(Rnew[i][j] - A[i][j]);
+                        A[i][j] = Rnew[i][j];
+                    }
+                }
+                if (diff < 1e-10) break;
+            }
+
+            let det = A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1])
+                    - A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0])
+                    + A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
+
+            if (det < 0) {
+                for (let i = 0; i < 3; i++) A[2][i] = -A[2][i];
+            }
+
+            return A;
+        }
+
+        function invert3x3(m) {
+            let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                    - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                    + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+
+            if (Math.abs(det) < 1e-10) return null;
+
+            let invDet = 1 / det;
+            return [
+                [
+                    (m[1][1] * m[2][2] - m[1][2] * m[2][1]) * invDet,
+                    (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * invDet,
+                    (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * invDet
+                ],
+                [
+                    (m[1][2] * m[2][0] - m[1][0] * m[2][2]) * invDet,
+                    (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * invDet,
+                    (m[0][2] * m[1][0] - m[0][0] * m[1][2]) * invDet
+                ],
+                [
+                    (m[1][0] * m[2][1] - m[1][1] * m[2][0]) * invDet,
+                    (m[0][1] * m[2][0] - m[0][0] * m[2][1]) * invDet,
+                    (m[0][0] * m[1][1] - m[0][1] * m[1][0]) * invDet
+                ]
+            ];
+        }
+
+        function rotationMatrixToQuaternion(R) {
+            const m = new THREE.Matrix4();
+            m.set(
+                R[0][0], R[0][1], R[0][2], 0,
+                R[1][0], R[1][1], R[1][2], 0,
+                R[2][0], R[2][1], R[2][2], 0,
+                0, 0, 0, 1
+            );
+            return new THREE.Quaternion().setFromRotationMatrix(m);
+        }
+
+        function getWorldTransform(coordId) {
+            const coord = coordinates[coordId];
+            if (!coord || coord.isWorld) {
+                return { position: new THREE.Vector3(0, 0, 0), quaternion: new THREE.Quaternion() };
+            }
+
+            const refTransform = getWorldTransform(coord.refId);
+            const localPos = new THREE.Vector3(coord.position.x, coord.position.y, coord.position.z);
+
+            const rotMatrix = anglesToRotationMatrix(coord.angles);
+            const localQuat = rotationMatrixToQuaternion(rotMatrix);
+
+            const worldPos = localPos.applyQuaternion(refTransform.quaternion).add(refTransform.position);
+            const worldQuat = refTransform.quaternion.clone().multiply(localQuat);
+
+            return { position: worldPos, quaternion: worldQuat };
+        }
+
+        function updateCoordTransform(coordId) {
+            const coord = coordinates[coordId];
+            if (!coord || coord.isWorld) return;
+
+            const transform = getWorldTransform(coordId);
+            coord.object3D.position.copy(transform.position);
+            coord.object3D.quaternion.copy(transform.quaternion);
+        }
+
+        function updateAllTransforms() {
+            Object.keys(coordinates).forEach(id => updateCoordTransform(id));
+        }
+
+        function getCoordColor(id, isSelected) {
+            if (id === WORLD_COORD_ID) return 0x888888;
+            if (isSelected) return 0xffaa00;
+
+            const hash = id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+            const hue = hash % 360;
+            return new THREE.Color().setHSL(hue / 360, 0.7, 0.5).getHex();
+        }
+
+        function createCoordinate() {
+            const name = document.getElementById('new-name').value.trim();
+            const refId = document.getElementById('ref-coord').value;
+            const posX = parseFloat(document.getElementById('pos-x').value) || 0;
+            const posY = parseFloat(document.getElementById('pos-y').value) || 0;
+            const posZ = parseFloat(document.getElementById('pos-z').value) || 0;
+
+            const angles = {
+                xx: parseFloat(document.getElementById('angle-xx').value) || 0,
+                xy: parseFloat(document.getElementById('angle-xy').value) || 90,
+                xz: parseFloat(document.getElementById('angle-xz').value) || 90,
+                yx: parseFloat(document.getElementById('angle-yx').value) || 90,
+                yy: parseFloat(document.getElementById('angle-yy').value) || 0,
+                yz: parseFloat(document.getElementById('angle-yz').value) || 90,
+                zx: parseFloat(document.getElementById('angle-zx').value) || 90,
+                zy: parseFloat(document.getElementById('angle-zy').value) || 90,
+                zz: parseFloat(document.getElementById('angle-zz').value) || 0
+            };
+
+            if (!name) {
+                alert('请输入坐标系名称');
+                return;
+            }
+
+            const id = generateId();
+            const axes = createAxes(1.5);
+            scene.add(axes);
+
+            coordinates[id] = {
+                id: id,
+                name: name,
+                refId: refId,
+                position: { x: posX, y: posY, z: posZ },
+                angles: angles,
+                object3D: axes,
+                isWorld: false
+            };
+
+            updateAllTransforms();
+            updateCoordList();
+            updateRefCoordSelect();
+
+            document.getElementById('new-name').value = '';
+            document.getElementById('pos-x').value = '0';
+            document.getElementById('pos-y').value = '0';
+            document.getElementById('pos-z').value = '0';
+            document.getElementById('angle-xx').value = '0';
+            document.getElementById('angle-xy').value = '90';
+            document.getElementById('angle-xz').value = '90';
+            document.getElementById('angle-yx').value = '90';
+            document.getElementById('angle-yy').value = '0';
+            document.getElementById('angle-yz').value = '90';
+            document.getElementById('angle-zx').value = '90';
+            document.getElementById('angle-zy').value = '90';
+            document.getElementById('angle-zz').value = '0';
+        }
+
+        function deleteCoordinate(id) {
+            if (id === WORLD_COORD_ID) {
+                alert('世界坐标系不能删除');
+                return;
+            }
+
+            const hasChildren = Object.values(coordinates).some(c => c.refId === id);
+            if (hasChildren) {
+                alert('该坐标系被其他坐标系引用，无法删除');
+                return;
+            }
+
+            if (!confirm('确定要删除该坐标系吗？')) return;
+
+            scene.remove(coordinates[id].object3D);
+            delete coordinates[id];
+
+            if (selectedCoordId === id) {
+                selectedCoordId = null;
+                document.getElementById('edit-section').style.display = 'none';
+            }
+
+            updateCoordList();
+            updateRefCoordSelect();
+        }
+
+        function selectCoordinate(id) {
+            selectedCoordId = id;
+            updateCoordList();
+
+            if (id !== WORLD_COORD_ID) {
+                const coord = coordinates[id];
+                document.getElementById('edit-name').value = coord.name;
+                document.getElementById('edit-pos-x').value = coord.position.x;
+                document.getElementById('edit-pos-y').value = coord.position.y;
+                document.getElementById('edit-pos-z').value = coord.position.z;
+                document.getElementById('edit-angle-xx').value = coord.angles.xx;
+                document.getElementById('edit-angle-xy').value = coord.angles.xy;
+                document.getElementById('edit-angle-xz').value = coord.angles.xz;
+                document.getElementById('edit-angle-yx').value = coord.angles.yx;
+                document.getElementById('edit-angle-yy').value = coord.angles.yy;
+                document.getElementById('edit-angle-yz').value = coord.angles.yz;
+                document.getElementById('edit-angle-zx').value = coord.angles.zx;
+                document.getElementById('edit-angle-zy').value = coord.angles.zy;
+                document.getElementById('edit-angle-zz').value = coord.angles.zz;
+                document.getElementById('edit-section').style.display = 'block';
+            } else {
+                document.getElementById('edit-section').style.display = 'none';
+            }
+        }
+
+        function updateCoordinate() {
+            if (!selectedCoordId || selectedCoordId === WORLD_COORD_ID) return;
+
+            const coord = coordinates[selectedCoordId];
+            coord.name = document.getElementById('edit-name').value.trim() || coord.name;
+            coord.position.x = parseFloat(document.getElementById('edit-pos-x').value) || 0;
+            coord.position.y = parseFloat(document.getElementById('edit-pos-y').value) || 0;
+            coord.position.z = parseFloat(document.getElementById('edit-pos-z').value) || 0;
+            coord.angles.xx = parseFloat(document.getElementById('edit-angle-xx').value) || 0;
+            coord.angles.xy = parseFloat(document.getElementById('edit-angle-xy').value) || 90;
+            coord.angles.xz = parseFloat(document.getElementById('edit-angle-xz').value) || 90;
+            coord.angles.yx = parseFloat(document.getElementById('edit-angle-yx').value) || 90;
+            coord.angles.yy = parseFloat(document.getElementById('edit-angle-yy').value) || 0;
+            coord.angles.yz = parseFloat(document.getElementById('edit-angle-yz').value) || 90;
+            coord.angles.zx = parseFloat(document.getElementById('edit-angle-zx').value) || 90;
+            coord.angles.zy = parseFloat(document.getElementById('edit-angle-zy').value) || 90;
+            coord.angles.zz = parseFloat(document.getElementById('edit-angle-zz').value) || 0;
+
+            updateAllTransforms();
+            updateCoordList();
+            updateRefCoordSelect();
+        }
+
+        function cancelEdit() {
+            selectedCoordId = null;
+            document.getElementById('edit-section').style.display = 'none';
+            updateCoordList();
+        }
+
+        function updateCoordList() {
+            const container = document.getElementById('coord-list');
+            container.innerHTML = '';
+
+            Object.values(coordinates).forEach(coord => {
+                const isSelected = coord.id === selectedCoordId;
+                const div = document.createElement('div');
+                div.className = 'coord-item' + (isSelected ? ' selected' : '');
+
+                const refName = coord.refId ? coordinates[coord.refId]?.name || '未知' : '无';
+                const details = coord.isWorld
+                    ? '固定世界坐标系'
+                    : `参考: ${refName}<br>位置: (${coord.position.x}, ${coord.position.y}, ${coord.position.z})<br>夹角矩阵: 已设置`;
+
+                div.innerHTML = `
+                    <div class="coord-item-header">
+                        <span class="coord-item-name">${coord.name}</span>
+                        <div class="coord-item-actions">
+                            <button class="btn-secondary small-btn" onclick="event.stopPropagation(); selectCoordinate('${coord.id}')">编辑</button>
+                            ${!coord.isWorld ? `<button class="btn-danger small-btn" onclick="event.stopPropagation(); deleteCoordinate('${coord.id}')">删除</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="coord-item-details">${details}</div>
+                `;
+
+                container.appendChild(div);
+            });
+        }
+
+        function updateRefCoordSelect() {
+            const select = document.getElementById('ref-coord');
+            select.innerHTML = '';
+            Object.values(coordinates).forEach(coord => {
+                const option = document.createElement('option');
+                option.value = coord.id;
+                option.textContent = coord.name;
+                select.appendChild(option);
+            });
+        }
+
+        function saveToFile() {
+            const data = {
+                version: 1,
+                coordinates: Object.values(coordinates)
+                    .filter(c => !c.isWorld)
+                    .map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        refId: c.refId,
+                        position: c.position,
+                        angles: c.angles
+                    }))
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'coordinates.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!data.coordinates) throw new Error('无效的文件格式');
+
+                    Object.keys(coordinates).forEach(id => {
+                        if (id !== WORLD_COORD_ID) {
+                            scene.remove(coordinates[id].object3D);
+                            delete coordinates[id];
+                        }
+                    });
+
+                    data.coordinates.forEach(coordData => {
+                        const axes = createAxes(1.5);
+                        scene.add(axes);
+                        coordinates[coordData.id] = {
+                            id: coordData.id,
+                            name: coordData.name,
+                            refId: coordData.refId,
+                            position: coordData.position,
+                            angles: coordData.angles,
+                            object3D: axes,
+                            isWorld: false
+                        };
+                    });
+
+                    updateAllTransforms();
+                    updateCoordList();
+                    updateRefCoordSelect();
+                    selectedCoordId = null;
+                    document.getElementById('edit-section').style.display = 'none';
+                    alert('加载成功！');
+                } catch (err) {
+                    alert('加载失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function resetCamera() {
+            camera.position.set(5, 5, 5);
+            camera.lookAt(0, 0, 0);
+            setupControls();
+        }
+
+        function toggleGrid() {
+            showGrid = !showGrid;
+            gridHelper.visible = showGrid;
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
