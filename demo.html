@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旋转歧义演示 - 同角度不同旋转</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #canvas-container {
+            flex: 1;
+            position: relative;
+        }
+        #info-panel {
+            background: #f5f5f5;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+        }
+        .coord-info {
+            background: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+        .coord-info h3 {
+            margin-bottom: 8px;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .coord-info .world { color: #888; }
+        .coord-info .coord-a { color: #e74c3c; }
+        .coord-info .coord-b { color: #3498db; }
+        .angle-table {
+            font-size: 12px;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+        .angle-table td {
+            padding: 2px 8px;
+            text-align: center;
+        }
+        .angle-table .coaxial {
+            font-weight: bold;
+            background: #fff3cd;
+        }
+        .conclusion {
+            background: #fff3cd;
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin-top: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: #856404;
+        }
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info-panel">
+        <div class="coord-info">
+            <h3 class="world">世界坐标系 (W)</h3>
+            <div style="font-size: 12px; color: #666;">
+                原点: (0, 0, 0)<br>
+                无旋转
+            </div>
+        </div>
+        <div class="coord-info">
+            <h3 class="coord-a">坐标系 A</h3>
+            <div style="font-size: 12px; color: #666;">
+                旋转轴: (1, 1, 1)<br>
+                旋转角: 180°
+            </div>
+            <table class="angle-table">
+                <tr><td>∠X-X'</td><td class="coaxial">90°</td><td>∠X-Y'</td><td>90°</td><td>∠X-Z'</td><td>0°</td></tr>
+                <tr><td>∠Y-X'</td><td>0°</td><td class="coaxial">∠Y-Y'</td><td>90°</td><td>∠Y-Z'</td><td>90°</td></tr>
+                <tr><td>∠Z-X'</td><td>90°</td><td>∠Z-Y'</td><td>0°</td><td class="coaxial">∠Z-Z'</td><td>90°</td></tr>
+            </table>
+        </div>
+        <div class="coord-info">
+            <h3 class="coord-b">坐标系 B</h3>
+            <div style="font-size: 12px; color: #666;">
+                旋转轴: (1, -1, 1)<br>
+                旋转角: 180°
+            </div>
+            <table class="angle-table">
+                <tr><td>∠X-X'</td><td class="coaxial">90°</td><td>∠X-Y'</td><td>0°</td><td>∠X-Z'</td><td>90°</td></tr>
+                <tr><td>∠Y-X'</td><td>90°</td><td class="coaxial">∠Y-Y'</td><td>90°</td><td>∠Y-Z'</td><td>0°</td></tr>
+                <tr><td>∠Z-X'</td><td>0°</td><td>∠Z-Y'</td><td>90°</td><td class="coaxial">∠Z-Z'</td><td>90°</td></tr>
+            </table>
+        </div>
+    </div>
+    <div class="conclusion">
+        ⚠️ 结论：A和B的三个同轴夹角（X-X', Y-Y', Z-Z'）都是90°，但它们是完全不同的旋转！3个同轴夹角不足以唯一确定旋转。
+    </div>
+    <div id="canvas-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(4, 3, 4);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            const gridHelper = new THREE.GridHelper(6, 6, 0xcccccc, 0xeeeeee);
+            scene.add(gridHelper);
+
+            addWorldCoordinate();
+            addCoordinateA();
+            addCoordinateB();
+            addRotationAxisHelper();
+
+            setupControls();
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function createAxes(size = 1, colorOffset = 0x000000) {
+            const group = new THREE.Group();
+            const colors = [0xff0000 + colorOffset, 0x00ff00 + colorOffset, 0x0000ff + colorOffset];
+            const axisData = [
+                { dir: new THREE.Vector3(1, 0, 0), color: colors[0], label: 'X' },
+                { dir: new THREE.Vector3(0, 1, 0), color: colors[1], label: 'Y' },
+                { dir: new THREE.Vector3(0, 0, 1), color: colors[2], label: 'Z' }
+            ];
+
+            axisData.forEach(axis => {
+                const geometry = new THREE.BufferGeometry();
+                const points = [new THREE.Vector3(0, 0, 0), axis.dir.clone().multiplyScalar(size)];
+                geometry.setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: axis.color, linewidth: 3 });
+                const line = new THREE.Line(geometry, material);
+                group.add(line);
+
+                const arrowGeom = new THREE.ConeGeometry(0.07, 0.2, 8);
+                const arrowMat = new THREE.MeshLambertMaterial({ color: axis.color });
+                const arrow = new THREE.Mesh(arrowGeom, arrowMat);
+                arrow.position.copy(axis.dir.clone().multiplyScalar(size));
+                arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.dir);
+                group.add(arrow);
+            });
+
+            const sphereGeom = new THREE.SphereGeometry(0.08, 8, 8);
+            const sphereMat = new THREE.MeshLambertMaterial({ color: 0x666666 + colorOffset });
+            const origin = new THREE.Mesh(sphereGeom, sphereMat);
+            group.add(origin);
+
+            return group;
+        }
+
+        function addWorldCoordinate() {
+            const axes = createAxes(1.5, 0x000000);
+            scene.add(axes);
+
+            addLabel('W', 0, 0.2, 0, 0x888888);
+        }
+
+        function addCoordinateA() {
+            const axes = createAxes(1.2, 0x660000);
+
+            const axis = new THREE.Vector3(1, 1, 1).normalize();
+            const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI);
+            axes.quaternion.copy(quaternion);
+
+            axes.position.set(0, 0, 0);
+            scene.add(axes);
+
+            addLabel('A', 0, 0, 0, 0xe74c3c);
+        }
+
+        function addCoordinateB() {
+            const axes = createAxes(1.2, 0x000066);
+
+            const axis = new THREE.Vector3(1, -1, 1).normalize();
+            const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI);
+            axes.quaternion.copy(quaternion);
+
+            axes.position.set(0, 0, 0);
+            scene.add(axes);
+
+            addLabel('B', 0, 0, 0, 0x3498db);
+        }
+
+        function addRotationAxisHelper() {
+            const axis1Geom = new THREE.BufferGeometry();
+            const axis1Dir = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(2.5);
+            axis1Geom.setFromPoints([axis1Dir.clone().negate(), axis1Dir]);
+            const axis1Mat = new THREE.LineDashedMaterial({ color: 0xe74c3c, dashSize: 0.1, gapSize: 0.05 });
+            const axis1Line = new THREE.Line(axis1Geom, axis1Mat);
+            axis1Line.computeLineDistances();
+            scene.add(axis1Line);
+
+            const axis2Geom = new THREE.BufferGeometry();
+            const axis2Dir = new THREE.Vector3(1, -1, 1).normalize().multiplyScalar(2.5);
+            axis2Geom.setFromPoints([axis2Dir.clone().negate(), axis2Dir]);
+            const axis2Mat = new THREE.LineDashedMaterial({ color: 0x3498db, dashSize: 0.1, gapSize: 0.05 });
+            const axis2Line = new THREE.Line(axis2Geom, axis2Mat);
+            axis2Line.computeLineDistances();
+            scene.add(axis2Line);
+        }
+
+        function addLabel(text, x, y, z, color) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 32;
+
+            context.fillStyle = 'rgba(255,255,255,0.8)';
+            context.fillRect(0, 0, 64, 32);
+            context.font = 'bold 20px Arial';
+            context.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            context.textAlign = 'center';
+            context.fillText(text, 32, 24);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(x, y + 0.3, z);
+            sprite.scale.set(0.5, 0.25, 1);
+            scene.add(sprite);
+        }
+
+        function setupControls() {
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            let spherical = { theta: Math.PI / 4, phi: Math.PI / 3, radius: 6 };
+            let target = new THREE.Vector3(0, 0, 0);
+
+            function updateCamera() {
+                camera.position.x = target.x + spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+                camera.position.y = target.y + spherical.radius * Math.cos(spherical.phi);
+                camera.position.z = target.z + spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+                camera.lookAt(target);
+            }
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                spherical.theta -= deltaX * 0.01;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi - deltaY * 0.01));
+                updateCamera();
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => isDragging = false);
+            renderer.domElement.addEventListener('mouseleave', () => isDragging = false);
+
+            renderer.domElement.addEventListener('wheel', (e) => {
+                spherical.radius = Math.max(3, Math.min(15, spherical.radius + e.deltaY * 0.01));
+                updateCamera();
+            });
+
+            updateCamera();
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
