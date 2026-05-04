@@ -51,9 +51,11 @@
             padding: 2px 8px;
             text-align: center;
         }
+        .angle-table .label { background: #f5f5f5; }
+        .angle-table .value { background: #ffffff; }
         .angle-table .coaxial {
             font-weight: bold;
-            background: #fff3cd;
+            background: #fff3cd !important;
         }
         .conclusion {
             background: #fff3cd;
@@ -85,9 +87,9 @@
                 与世界坐标系同轴夹角: ~(10°, 20°, 30°)
             </div>
             <table class="angle-table">
-                <tr><td>∠X-X'</td><td class="coaxial">~10°</td><td>∠X-Y'</td><td>~80°</td><td>∠X-Z'</td><td>~95°</td></tr>
-                <tr><td>∠Y-X'</td><td>~82°</td><td class="coaxial">∠Y-Y'</td><td>~20°</td><td>∠Y-Z'</td><td>~88°</td></tr>
-                <tr><td>∠Z-X'</td><td>~88°</td><td>∠Z-Y'</td><td>~72°</td><td class="coaxial">∠Z-Z'</td><td>~30°</td></tr>
+                <tr><td class="label">∠XW-XA</td><td class="coaxial">~10°</td><td class="label">∠XW-YA</td><td class="value">~80°</td><td class="label">∠XW-ZA</td><td class="value">~95°</td></tr>
+                <tr><td class="label">∠YW-XA</td><td class="value">~82°</td><td class="coaxial">∠YW-YA</td><td class="value">~20°</td><td class="label">∠YW-ZA</td><td class="value">~88°</td></tr>
+                <tr><td class="label">∠ZW-XA</td><td class="value">~88°</td><td class="label">∠ZW-YA</td><td class="value">~72°</td><td class="coaxial">∠ZW-ZA</td><td class="value">~30°</td></tr>
             </table>
         </div>
         <div class="coord-info" onclick="selectCoordinate('B')" style="cursor: pointer;">
@@ -96,9 +98,9 @@
                 与世界坐标系同轴夹角: ~(10°, 20°, 30°)
             </div>
             <table class="angle-table">
-                <tr><td>∠X-X'</td><td class="coaxial">~10°</td><td>∠X-Y'</td><td>~100°</td><td>∠X-Z'</td><td>~85°</td></tr>
-                <tr><td>∠Y-X'</td><td>~98°</td><td class="coaxial">∠Y-Y'</td><td>~20°</td><td>∠Y-Z'</td><td>~92°</td></tr>
-                <tr><td>∠Z-X'</td><td>~92°</td><td>∠Z-Y'</td><td>~108°</td><td class="coaxial">∠Z-Z'</td><td>~30°</td></tr>
+                <tr><td class="label">∠XW-XB</td><td class="coaxial">~10°</td><td class="label">∠XW-YB</td><td class="value">~100°</td><td class="label">∠XW-ZB</td><td class="value">~85°</td></tr>
+                <tr><td class="label">∠YW-XB</td><td class="value">~98°</td><td class="coaxial">∠YW-YB</td><td class="value">~20°</td><td class="label">∠YW-ZB</td><td class="value">~92°</td></tr>
+                <tr><td class="label">∠ZW-XB</td><td class="value">~92°</td><td class="label">∠ZW-YB</td><td class="value">~108°</td><td class="coaxial">∠ZW-ZB</td><td class="value">~30°</td></tr>
             </table>
         </div>
     </div>
