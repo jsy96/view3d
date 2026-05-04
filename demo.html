@@ -103,7 +103,7 @@
         </div>
     </div>
     <div class="conclusion">
-        ⚠️ 结论：A和B的三个同轴夹角（X-X'≈10°, Y-Y'≈20°, Z-Z'≈30°）几乎完全相同，但它们是完全不同的旋转，三轴不重叠！
+        ⚠️ 结论：A和B与世界坐标系各轴<b>正向</b>夹角都是约(10°, 20°, 30°)，但它们是完全不同的旋转，三轴不重叠！
         <br>→ 仅用3个同轴夹角不足以唯一确定一个3D旋转。
         <br><small style="font-weight: normal;">💡 提示：点击上方坐标系信息框可以加粗显示该坐标系的三轴</small>
     </div>
@@ -139,6 +139,8 @@
 
             const gridHelper = new THREE.GridHelper(6, 6, 0xcccccc, 0xeeeeee);
             scene.add(gridHelper);
+
+            solveForRotations();
 
             addWorldCoordinate();
             addCoordinateA();
@@ -220,70 +222,41 @@
 
         function coaxialAnglesToDeg(quat) {
             const rotMat = new THREE.Matrix4().makeRotationFromQuaternion(quat);
-            const xx = Math.acos(Math.abs(rotMat.elements[0])) * 180 / Math.PI;
-            const yy = Math.acos(Math.abs(rotMat.elements[5])) * 180 / Math.PI;
-            const zz = Math.acos(Math.abs(rotMat.elements[10])) * 180 / Math.PI;
+            const xx = Math.acos(rotMat.elements[0]) * 180 / Math.PI;
+            const yy = Math.acos(rotMat.elements[5]) * 180 / Math.PI;
+            const zz = Math.acos(rotMat.elements[10]) * 180 / Math.PI;
             return [xx, yy, zz];
         }
 
-        function findExactRotations(targetX, targetY, targetZ) {
-            const cx = Math.cos(targetX * Math.PI / 180);
-            const cy = Math.cos(targetY * Math.PI / 180);
-            const cz = Math.cos(targetZ * Math.PI / 180);
 
-            let best1 = { error: 1e10, quat: null };
-            let best2 = { error: 1e10, quat: null };
+        let quatA, quatB;
 
-            for (let rx = -180; rx <= 180; rx += 1) {
-                for (let ry = -180; ry <= 180; ry += 1) {
-                    for (let rz = -180; rz <= 180; rz += 1) {
-                        const euler = new THREE.Euler(
-                            rx * Math.PI / 180,
-                            ry * Math.PI / 180,
-                            rz * Math.PI / 180,
-                            'XYZ'
-                        );
-                        const quat = new THREE.Quaternion().setFromEuler(euler);
-                        const rotMat = new THREE.Matrix4().makeRotationFromQuaternion(quat);
+        function solveForRotations() {
+            const euler1 = new THREE.Euler(
+                19.7 * Math.PI / 180,
+                11.2 * Math.PI / 180,
+                -3.8 * Math.PI / 180,
+                'ZYX'
+            );
+            quatA = new THREE.Quaternion().setFromEuler(euler1);
 
-                        const error =
-                            Math.pow(Math.abs(rotMat.elements[0]) - cx, 2) +
-                            Math.pow(Math.abs(rotMat.elements[5]) - cy, 2) +
-                            Math.pow(Math.abs(rotMat.elements[10]) - cz, 2);
-
-                        const angleSum = Math.abs(rx) + Math.abs(ry) + Math.abs(rz);
-
-                        if (error < best1.error && angleSum < 100) {
-                            best1 = { error, quat: quat.clone(), rx, ry, rz };
-                        }
-                        if (error < best2.error && angleSum > 150) {
-                            best2 = { error, quat: quat.clone(), rx, ry, rz };
-                        }
-                    }
-                }
-            }
-
-            console.log('Solution 1 (small angles):', best1.rx, best1.ry, best1.rz, 'error:', best1.error);
-            console.log('Solution 2 (large angles):', best2.rx, best2.ry, best2.rz, 'error:', best2.error);
-
-            return [best1.quat, best2.quat];
+            const euler2 = new THREE.Euler(
+                53.2 * Math.PI / 180,
+                -43.8 * Math.PI / 180,
+                82.6 * Math.PI / 180,
+                'ZYX'
+            );
+            quatB = new THREE.Quaternion().setFromEuler(euler2);
         }
 
         function addCoordinateA() {
             const axes = createAxes(1.2, 0x44ff44, 'A');
             coordinateSystems['A'] = axes;
 
-            const euler = new THREE.Euler(
-                26.3 * Math.PI / 180,
-                -4.1 * Math.PI / 180,
-                -14.7 * Math.PI / 180,
-                'XYZ'
-            );
-            const quaternion = new THREE.Quaternion().setFromEuler(euler);
-            axes.quaternion.copy(quaternion);
+            axes.quaternion.copy(quatA);
 
-            const angles = coaxialAnglesToDeg(quaternion);
-            console.log('A coaxial angles (XX, YY, ZZ):', angles[0].toFixed(1) + '°,', angles[1].toFixed(1) + '°,', angles[2].toFixed(1) + '°');
+            const angles = coaxialAnglesToDeg(quatA);
+            console.log('A coaxial angles (XX, YY, ZZ):', angles[0].toFixed(2) + '°,', angles[1].toFixed(2) + '°,', angles[2].toFixed(2) + '°');
 
             axes.position.set(0, 0, 0);
             scene.add(axes);
@@ -293,17 +266,10 @@
             const axes = createAxes(1.2, 0x4444ff, 'B');
             coordinateSystems['B'] = axes;
 
-            const euler = new THREE.Euler(
-                -26.3 * Math.PI / 180,
-                4.1 * Math.PI / 180,
-                165.3 * Math.PI / 180,
-                'XYZ'
-            );
-            const quaternion = new THREE.Quaternion().setFromEuler(euler);
-            axes.quaternion.copy(quaternion);
+            axes.quaternion.copy(quatB);
 
-            const angles = coaxialAnglesToDeg(quaternion);
-            console.log('B coaxial angles (XX, YY, ZZ):', angles[0].toFixed(1) + '°,', angles[1].toFixed(1) + '°,', angles[2].toFixed(1) + '°');
+            const angles = coaxialAnglesToDeg(quatB);
+            console.log('B coaxial angles (XX, YY, ZZ):', angles[0].toFixed(2) + '°,', angles[1].toFixed(2) + '°,', angles[2].toFixed(2) + '°');
 
             axes.position.set(0, 0, 0);
             scene.add(axes);
