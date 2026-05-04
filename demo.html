@@ -42,9 +42,6 @@
             border-bottom: 1px solid #eee;
             padding-bottom: 5px;
         }
-        .coord-info .world { color: #888; }
-        .coord-info .coord-a { color: #e74c3c; }
-        .coord-info .coord-b { color: #3498db; }
         .angle-table {
             font-size: 12px;
             border-collapse: collapse;
@@ -76,14 +73,14 @@
 <body>
     <div id="info-panel">
         <div class="coord-info" onclick="selectCoordinate('world')" style="cursor: pointer;">
-            <h3 class="world">世界坐标系 (W)</h3>
+            <h3 style="color: #ff4444;">世界坐标系 (W)</h3>
             <div style="font-size: 12px; color: #666;">
                 原点: (0, 0, 0)<br>
                 无旋转
             </div>
         </div>
         <div class="coord-info" onclick="selectCoordinate('A')" style="cursor: pointer;">
-            <h3 class="coord-a">坐标系 A</h3>
+            <h3 style="color: #44ff44;">坐标系 A</h3>
             <div style="font-size: 12px; color: #666;">
                 旋转轴: (1, 1, 1)<br>
                 旋转角: 180°
@@ -174,14 +171,13 @@
             return sprite;
         }
 
-        function createAxes(size = 1, colorOffset = 0x000000, coordId) {
+        function createAxes(size = 1, coordColor, coordId) {
             const group = new THREE.Group();
-            const colors = [0xff0000 + colorOffset, 0x00ff00 + colorOffset, 0x0000ff + colorOffset];
             const labelSuffix = coordId === 'world' ? 'W' : coordId;
             const axisData = [
-                { dir: new THREE.Vector3(1, 0, 0), color: colors[0], label: 'X' + labelSuffix },
-                { dir: new THREE.Vector3(0, 1, 0), color: colors[1], label: 'Y' + labelSuffix },
-                { dir: new THREE.Vector3(0, 0, 1), color: colors[2], label: 'Z' + labelSuffix }
+                { dir: new THREE.Vector3(1, 0, 0), color: coordColor, label: 'X' + labelSuffix },
+                { dir: new THREE.Vector3(0, 1, 0), color: coordColor, label: 'Y' + labelSuffix },
+                { dir: new THREE.Vector3(0, 0, 1), color: coordColor, label: 'Z' + labelSuffix }
             ];
 
             group.coordId = coordId;
@@ -211,7 +207,7 @@
             });
 
             const sphereGeom = new THREE.SphereGeometry(0.08, 8, 8);
-            const sphereMat = new THREE.MeshLambertMaterial({ color: 0x666666 + colorOffset });
+            const sphereMat = new THREE.MeshLambertMaterial({ color: coordColor });
             const origin = new THREE.Mesh(sphereGeom, sphereMat);
             group.add(origin);
 
@@ -219,13 +215,13 @@
         }
 
         function addWorldCoordinate() {
-            const axes = createAxes(1.5, 0x000000, 'world');
+            const axes = createAxes(1.5, 0xff4444, 'world');
             coordinateSystems['world'] = axes;
             scene.add(axes);
         }
 
         function addCoordinateA() {
-            const axes = createAxes(1.2, 0x660000, 'A');
+            const axes = createAxes(1.2, 0x44ff44, 'A');
             coordinateSystems['A'] = axes;
 
             const axis = new THREE.Vector3(1, 1, 1).normalize();
@@ -237,7 +233,7 @@
         }
 
         function addCoordinateB() {
-            const axes = createAxes(1.2, 0x000066, 'B');
+            const axes = createAxes(1.2, 0x4444ff, 'B');
             coordinateSystems['B'] = axes;
 
             const axis = new THREE.Vector3(1, -1, 1).normalize();
@@ -252,7 +248,7 @@
             const axis1Geom = new THREE.BufferGeometry();
             const axis1Dir = new THREE.Vector3(1, 1, 1).normalize().multiplyScalar(2.5);
             axis1Geom.setFromPoints([axis1Dir.clone().negate(), axis1Dir]);
-            const axis1Mat = new THREE.LineDashedMaterial({ color: 0xe74c3c, dashSize: 0.1, gapSize: 0.05 });
+            const axis1Mat = new THREE.LineDashedMaterial({ color: 0x44ff44, dashSize: 0.1, gapSize: 0.05 });
             const axis1Line = new THREE.Line(axis1Geom, axis1Mat);
             axis1Line.computeLineDistances();
             scene.add(axis1Line);
@@ -260,7 +256,7 @@
             const axis2Geom = new THREE.BufferGeometry();
             const axis2Dir = new THREE.Vector3(1, -1, 1).normalize().multiplyScalar(2.5);
             axis2Geom.setFromPoints([axis2Dir.clone().negate(), axis2Dir]);
-            const axis2Mat = new THREE.LineDashedMaterial({ color: 0x3498db, dashSize: 0.1, gapSize: 0.05 });
+            const axis2Mat = new THREE.LineDashedMaterial({ color: 0x4444ff, dashSize: 0.1, gapSize: 0.05 });
             const axis2Line = new THREE.Line(axis2Geom, axis2Mat);
             axis2Line.computeLineDistances();
             scene.add(axis2Line);
