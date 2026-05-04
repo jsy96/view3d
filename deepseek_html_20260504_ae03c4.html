@@ -258,14 +258,8 @@
             display: inline-block;
             flex-shrink: 0;
         }
-        .vec-dot.xa {
-            background: #ff66a0;
-        }
-        .vec-dot.ya {
-            background: #66d9ff;
-        }
-        .vec-dot.za {
-            background: #ffd966;
+        .vec-dot.xa, .vec-dot.ya, .vec-dot.za {
+            background: #a78bfa;
         }
         .vec-label {
             font-weight: 700;
@@ -332,23 +326,11 @@
             height: 3px;
             border-radius: 2px;
         }
-        .leg-dot.xw {
-            background: #ff4444;
+        .leg-dot.xw, .leg-dot.yw, .leg-dot.zw {
+            background: #e0e0e0;
         }
-        .leg-dot.yw {
-            background: #44ff44;
-        }
-        .leg-dot.zw {
-            background: #4488ff;
-        }
-        .leg-dot.xa {
-            background: #ff66a0;
-        }
-        .leg-dot.ya {
-            background: #66d9ff;
-        }
-        .leg-dot.za {
-            background: #ffd966;
+        .leg-dot.xa, .leg-dot.ya, .leg-dot.za {
+            background: #a78bfa;
         }
 
         /* Toast */
@@ -634,20 +616,20 @@
             while (labelsGroup.children.length > 0) labelsGroup.remove(labelsGroup.children[0]);
 
             const axisLength = 2.5;
-            const colors = { x: 0xff4444, y: 0x44ff44, z: 0x4488ff };
+            const axisColor = 0xe0e0e0;
             const dirs = {
                 x: new THREE.Vector3(1, 0, 0),
                 y: new THREE.Vector3(0, 1, 0),
                 z: new THREE.Vector3(0, 0, 1),
             };
             const labels = { x: 'Xw', y: 'Yw', z: 'Zw' };
-            const labelColors = { x: '#ff6666', y: '#66ff66', z: '#6699ff' };
+            const labelColor = '#e0e0e0';
 
             for (const axis of ['x', 'y', 'z']) {
-                const arrow = createArrowMesh(dirs[axis], axisLength, colors[axis], 0.045, 0.11, 0.28);
+                const arrow = createArrowMesh(dirs[axis], axisLength, axisColor, 0.045, 0.11, 0.28);
                 worldAxesGroup.add(arrow);
                 const labelPos = dirs[axis].clone().multiplyScalar(axisLength + 0.35);
-                const sprite = createLabelSprite(labels[axis], labelPos, labelColors[axis]);
+                const sprite = createLabelSprite(labels[axis], labelPos, labelColor);
                 labelsGroup.add(sprite);
             }
         }
@@ -659,16 +641,15 @@
             while (aAxesGroup.children.length > 0) aAxesGroup.remove(aAxesGroup.children[0]);
 
             const axisLength = 2.2;
-            const colors = { xa: 0xff4488, ya: 0x44ddff, za: 0xffcc44 };
+            const axisColor = 0xa78bfa;
+            const labelColor = '#c4b5fd';
             const vecs = { xa: xaVec.clone().normalize(), ya: yaVec.clone().normalize(), za: zaVec.clone().normalize() };
 
             for (const key of ['xa', 'ya', 'za']) {
-                const arrow = createArrowMesh(vecs[key], axisLength, colors[key], 0.04, 0.10, 0.26);
+                const arrow = createArrowMesh(vecs[key], axisLength, axisColor, 0.04, 0.10, 0.26);
                 aAxesGroup.add(arrow);
-                // 标签
                 const labelPos = vecs[key].clone().multiplyScalar(axisLength + 0.35);
                 const labelText = key.toUpperCase().replace('A', 'a');
-                const labelColor = key === 'xa' ? '#ff88aa' : key === 'ya' ? '#88eeff' : '#ffdd88';
                 const sprite = createLabelSprite(labelText, labelPos, labelColor);
                 labelsGroup.add(sprite);
             }
