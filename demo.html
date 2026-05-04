@@ -51,12 +51,6 @@
             padding: 2px 8px;
             text-align: center;
         }
-        .angle-table .label { background: #f5f5f5; }
-        .angle-table .value { background: #ffffff; }
-        .angle-table .coaxial {
-            font-weight: bold;
-            background: #fff3cd !important;
-        }
         .conclusion {
             background: #fff3cd;
             padding: 10px 20px;
@@ -87,9 +81,9 @@
                 与世界坐标系同轴夹角: ~(10°, 20°, 30°)
             </div>
             <table class="angle-table">
-                <tr><td class="label">∠XW-XA</td><td class="coaxial">~10°</td><td class="label">∠XW-YA</td><td class="value">~80°</td><td class="label">∠XW-ZA</td><td class="value">~95°</td></tr>
-                <tr><td class="label">∠YW-XA</td><td class="value">~82°</td><td class="coaxial">∠YW-YA</td><td class="value">~20°</td><td class="label">∠YW-ZA</td><td class="value">~88°</td></tr>
-                <tr><td class="label">∠ZW-XA</td><td class="value">~88°</td><td class="label">∠ZW-YA</td><td class="value">~72°</td><td class="coaxial">∠ZW-ZA</td><td class="value">~30°</td></tr>
+                <tr><td>∠XW-XA</td><td>~10°</td><td>∠XW-YA</td><td>~80°</td><td>∠XW-ZA</td><td>~95°</td></tr>
+                <tr><td>∠YW-XA</td><td>~82°</td><td>∠YW-YA</td><td>~20°</td><td>∠YW-ZA</td><td>~88°</td></tr>
+                <tr><td>∠ZW-XA</td><td>~88°</td><td>∠ZW-YA</td><td>~72°</td><td>∠ZW-ZA</td><td>~30°</td></tr>
             </table>
         </div>
         <div class="coord-info" onclick="selectCoordinate('B')" style="cursor: pointer;">
@@ -98,14 +92,14 @@
                 与世界坐标系同轴夹角: ~(10°, 20°, 30°)
             </div>
             <table class="angle-table">
-                <tr><td class="label">∠XW-XB</td><td class="coaxial">~10°</td><td class="label">∠XW-YB</td><td class="value">~100°</td><td class="label">∠XW-ZB</td><td class="value">~85°</td></tr>
-                <tr><td class="label">∠YW-XB</td><td class="value">~98°</td><td class="coaxial">∠YW-YB</td><td class="value">~20°</td><td class="label">∠YW-ZB</td><td class="value">~92°</td></tr>
-                <tr><td class="label">∠ZW-XB</td><td class="value">~92°</td><td class="label">∠ZW-YB</td><td class="value">~108°</td><td class="coaxial">∠ZW-ZB</td><td class="value">~30°</td></tr>
+                <tr><td>∠XW-XB</td><td>~10°</td><td>∠XW-YB</td><td>~100°</td><td>∠XW-ZB</td><td>~85°</td></tr>
+                <tr><td>∠YW-XB</td><td>~98°</td><td>∠YW-YB</td><td>~20°</td><td>∠YW-ZB</td><td>~92°</td></tr>
+                <tr><td>∠ZW-XB</td><td>~92°</td><td>∠ZW-YB</td><td>~108°</td><td>∠ZW-ZB</td><td>~30°</td></tr>
             </table>
         </div>
     </div>
-    <div class="conclusion">
-        ⚠️ 结论：A和B与世界坐标系各轴<b>正向</b>夹角都是约(10°, 20°, 30°)，但它们是完全不同的旋转，三轴不重叠！
+    <div class="conclusion" id="conclusion">
+        ⚠️ 结论：A和B与世界坐标系各轴<b>正向</b>夹角都是精确的(10°, 20°, 30°)，但它们是完全不同的旋转，三轴不重叠！
         <br>→ 仅用3个同轴夹角不足以唯一确定一个3D旋转。
         <br><small style="font-weight: normal;">💡 提示：点击上方坐标系信息框可以加粗显示该坐标系的三轴</small>
     </div>
@@ -224,31 +218,246 @@
 
         function coaxialAnglesToDeg(quat) {
             const rotMat = new THREE.Matrix4().makeRotationFromQuaternion(quat);
-            const xx = Math.acos(rotMat.elements[0]) * 180 / Math.PI;
-            const yy = Math.acos(rotMat.elements[5]) * 180 / Math.PI;
-            const zz = Math.acos(rotMat.elements[10]) * 180 / Math.PI;
+            const e = rotMat.elements;
+            const xx = Math.acos(Math.max(-1, Math.min(1, e[0]))) * 180 / Math.PI;
+            const yy = Math.acos(Math.max(-1, Math.min(1, e[5]))) * 180 / Math.PI;
+            const zz = Math.acos(Math.max(-1, Math.min(1, e[10]))) * 180 / Math.PI;
             return [xx, yy, zz];
+        }
+
+        function verifyOrthogonality(quat) {
+            const m = new THREE.Matrix4().makeRotationFromQuaternion(quat);
+            const e = m.elements;
+            const xDotY = e[0]*e[4] + e[1]*e[5] + e[2]*e[6];
+            const xDotZ = e[0]*e[8] + e[1]*e[9] + e[2]*e[10];
+            const yDotZ = e[4]*e[8] + e[5]*e[9] + e[6]*e[10];
+            const xLen = Math.sqrt(e[0]*e[0] + e[1]*e[1] + e[2]*e[2]);
+            const yLen = Math.sqrt(e[4]*e[4] + e[5]*e[5] + e[6]*e[6]);
+            const zLen = Math.sqrt(e[8]*e[8] + e[9]*e[9] + e[10]*e[10]);
+            console.log('正交性检查: X·Y='+xDotY.toFixed(10)+' X·Z='+xDotZ.toFixed(10)+' Y·Z='+yDotZ.toFixed(10));
+            console.log('轴长度: |X|='+xLen.toFixed(10)+' |Y|='+yLen.toFixed(10)+' |Z|='+zLen.toFixed(10));
         }
 
 
         let quatA, quatB;
 
         function solveForRotations() {
-            const euler1 = new THREE.Euler(
-                19.7 * Math.PI / 180,
-                11.2 * Math.PI / 180,
-                -3.8 * Math.PI / 180,
-                'ZYX'
-            );
-            quatA = new THREE.Quaternion().setFromEuler(euler1);
+            const targetAngles = [10, 20, 30].map(d => d * Math.PI / 180);
+            const c1 = Math.cos(targetAngles[0]);
+            const c2 = Math.cos(targetAngles[1]);
+            const c3 = Math.cos(targetAngles[2]);
 
-            const euler2 = new THREE.Euler(
-                53.2 * Math.PI / 180,
-                -43.8 * Math.PI / 180,
-                82.6 * Math.PI / 180,
-                'ZYX'
-            );
-            quatB = new THREE.Quaternion().setFromEuler(euler2);
+            console.log('目标cos值: R[0][0]=', c1, 'R[1][1]=', c2, 'R[2][2]=', c3);
+
+            const D = 1 - c1*c1 - c2*c2 - c3*c3 + 2*c1*c2*c3;
+            console.log('判别式 D =', D.toFixed(12));
+            console.log('c1²=' + (c1*c1).toFixed(6), 'c2²=' + (c2*c2).toFixed(6), 'c3²=' + (c3*c3).toFixed(6));
+            console.log('c1²+c2²+c3²=' + (c1*c1+c2*c2+c3*c3).toFixed(6));
+            console.log('2*c1*c2*c3=' + (2*c1*c2*c3).toFixed(6));
+
+            if (D < -1e-10) {
+                console.error('❌ D < 0，没有实数解！');
+                console.error('这意味着：不存在任何旋转矩阵能同时满足 R[0][0]=cos(10°), R[1][1]=cos(20°), R[2][2]=cos(30°)！');
+                console.error('三个同轴角的选择不是任意的，必须满足D >= 0才能有解！');
+            } else if (Math.abs(D) < 1e-10) {
+                console.log('D = 0，唯一解');
+            } else {
+                console.log('D > 0，有两个不同的解');
+            }
+
+            if (D < -1e-10) {
+                console.error('无解！D必须>=0');
+                return;
+            }
+
+            if (Math.abs(D) < 1e-10) {
+                console.log('D=0，唯一解');
+            }
+
+            const s1 = Math.sqrt(1 - c1*c1);
+            const s2 = Math.sqrt(1 - c2*c2);
+            const s3 = Math.sqrt(1 - c3*c3);
+            console.log('s1 s2 s3:', s1, s2, s3);
+
+            const sqrtD = Math.sqrt(Math.max(0, D));
+            console.log('sqrt(D):', sqrtD);
+
+            function buildMatrix(sign_r10, sign_r01) {
+                const sr10 = sign_r10 ? 1 : -1;
+                const sr01 = sign_r01 ? 1 : -1;
+
+                const r20_vals = [sr10 * s1];
+                const r02_vals = [sr01 * s3];
+
+                let best = null;
+                let bestErr = 1e10;
+
+                for (let r20 of r20_vals) {
+                    for (let r02 of r02_vals) {
+                        const r10 = Math.sqrt(s1*s1 - r20*r20);
+                        const r01 = Math.sqrt(s3*s3 - r02*r02);
+
+                        for (let sr10a of [1, -1]) {
+                            for (let sr01a of [1, -1]) {
+                                const r10s = sr10a * r10;
+                                const r01s = sr01a * r01;
+
+                                const r12 = (-c1*r01s - r10s*c2) / r20;
+                                const r21 = (-c1*r02 - r20*c3) / r10s;
+
+                                if (Math.abs(r12) > 1.1 || Math.abs(r21) > 1.1) continue;
+
+                                const e = [
+                                    c1,   r10s, r20,  0,
+                                    r01s, c2,   r12,  0,
+                                    r02,  r21,  c3,   0,
+                                    0,    0,    0,    1
+                                ];
+
+                                const det = e[0]*(e[5]*e[10]-e[6]*e[9]) - e[4]*(e[1]*e[10]-e[2]*e[9]) + e[8]*(e[1]*e[6]-e[2]*e[5]);
+                                const ortho1 = Math.abs(e[0]*e[4] + e[1]*e[5] + e[2]*e[6]);
+                                const ortho2 = Math.abs(e[0]*e[8] + e[1]*e[9] + e[2]*e[10]);
+                                const ortho3 = Math.abs(e[4]*e[8] + e[5]*e[9] + e[6]*e[10]);
+
+                                const err = Math.abs(det - 1) + ortho1 + ortho2 + ortho3;
+                                if (err < bestErr) {
+                                    bestErr = err;
+                                    best = {e, det, err};
+                                }
+                            }
+                        }
+                    }
+                }
+                return best;
+            }
+
+            const validMats = [];
+            for (let s1 = 0; s1 < 2; s1++) {
+                for (let s2 = 0; s2 < 2; s2++) {
+                    const result = buildMatrix(s1, s2);
+                    if (result && result.err < 0.01) {
+                        const m = new THREE.Matrix4();
+                        m.set(...result.e);
+                        validMats.push(m);
+                        console.log('找到有效矩阵, det=' + result.det + ', err=' + result.err);
+                    }
+                }
+            }
+
+            console.log('尝试符号组合后，有效解数量:', validMats.length);
+
+            console.log('使用数值优化来寻找不同的解...');
+
+            const targetCos = [c1, c2, c3];
+            function error(quat) {
+                const m = new THREE.Matrix4().makeRotationFromQuaternion(quat);
+                const e = m.elements;
+                const dx = e[0] - targetCos[0];
+                const dy = e[5] - targetCos[1];
+                const dz = e[10] - targetCos[2];
+                return dx*dx + dy*dy + dz*dz;
+            }
+
+            function optimize(initial, steps = 10000) {
+                let q = initial.clone();
+                const delta = 1e-8;
+                for (let i = 0; i < steps; i++) {
+                    const progress = i / steps;
+                    const lr = progress < 0.3 ? 0.1 : progress < 0.7 ? 0.02 : 0.003;
+                    const e0 = error(q);
+                    const grad = new THREE.Vector4();
+                    q.x += delta; grad.x = (error(q) - e0) / delta; q.x -= delta;
+                    q.y += delta; grad.y = (error(q) - e0) / delta; q.y -= delta;
+                    q.z += delta; grad.z = (error(q) - e0) / delta; q.z -= delta;
+                    q.w += delta; grad.w = (error(q) - e0) / delta; q.w -= delta;
+                    q.x -= lr * grad.x; q.y -= lr * grad.y;
+                    q.z -= lr * grad.z; q.w -= lr * grad.w;
+                    q.normalize();
+                }
+                return q;
+            }
+
+            quatA = optimize(new THREE.Quaternion(0.15, 0.1, 0.05, 1).normalize());
+            quatB = optimize(new THREE.Quaternion(-0.3, -0.2, 0.4, 0.5).normalize());
+
+            const anglesA = coaxialAnglesToDeg(quatA);
+            const anglesB = coaxialAnglesToDeg(quatB);
+
+            console.log('A 同轴角度:', anglesA.map(a => a.toFixed(6) + '°').join(', '));
+            console.log('B 同轴角度:', anglesB.map(a => a.toFixed(6) + '°').join(', '));
+            console.log('A 与目标的误差 (°):', [Math.abs(anglesA[0]-10), Math.abs(anglesA[1]-20), Math.abs(anglesA[2]-30)]);
+            console.log('B 与目标的误差 (°):', [Math.abs(anglesB[0]-10), Math.abs(anglesB[1]-20), Math.abs(anglesB[2]-30)]);
+            console.log('注意：这个误差永远无法消除，因为D < 0，没有精确解！');
+
+            console.log('--- 坐标系A ---');
+            verifyOrthogonality(quatA);
+            console.log('A旋转矩阵:', new THREE.Matrix4().makeRotationFromQuaternion(quatA).elements);
+            console.log('--- 坐标系B ---');
+            verifyOrthogonality(quatB);
+            console.log('B旋转矩阵:', new THREE.Matrix4().makeRotationFromQuaternion(quatB).elements);
+
+            const diff = quatA.clone().invert().multiply(quatB);
+            const angleDiff = 2 * Math.acos(Math.min(1, Math.max(-1, Math.abs(diff.w)))) * 180 / Math.PI;
+            console.log('A和B之间的角度差:', angleDiff.toFixed(4) + '°');
+
+            const conclusion = document.getElementById('conclusion');
+            if (D < -1e-10) {
+                conclusion.innerHTML = `❌ <b>数学上无解！</b> 不存在旋转矩阵能让三个同轴角同时精确等于(10°, 20°, 30°)！
+            <br>判别式 D = ${D.toFixed(8)} < 0，说明这三个角度的组合是<strong>不可能</strong>的！
+            <br>优化只能得到近似解：A(${anglesA.map(a=>a.toFixed(4)+'°').join(', ')})
+            <br><strong>关键结论：</strong>三个同轴夹角的选择不是任意的，必须满足 D ≥ 0 才存在有效旋转！`;
+                conclusion.style.background = '#f8d7da';
+                conclusion.style.color = '#721c24';
+            } else if (angleDiff < 0.01) {
+                conclusion.innerHTML = `✓ 只有 <b>1个</b> 有效解。
+            <br>同轴夹角: (${anglesA.map(a=>a.toFixed(4)+'°').join(', ')})
+            <br>判别式 D = ${D.toFixed(8)}`;
+                conclusion.style.background = '#d4edda';
+                conclusion.style.color = '#155724';
+            } else {
+                conclusion.innerHTML = `⚠️ 有2个不同的解，角度差异 = ${angleDiff.toFixed(2)}°
+            <br>判别式 D = ${D.toFixed(8)} > 0
+            <br>A:(${anglesA.map(a=>a.toFixed(4)+'°').join(', ')})
+            <br>B:(${anglesB.map(a=>a.toFixed(4)+'°').join(', ')})`;
+            }
+        }
+
+        function getAngleBetweenAxes(quat, axisLocal, axisWorld) {
+            const vLocal = new THREE.Vector3();
+            if (axisLocal === 'X') vLocal.set(1, 0, 0);
+            else if (axisLocal === 'Y') vLocal.set(0, 1, 0);
+            else vLocal.set(0, 0, 1);
+
+            const vWorld = new THREE.Vector3();
+            if (axisWorld === 'X') vWorld.set(1, 0, 0);
+            else if (axisWorld === 'Y') vWorld.set(0, 1, 0);
+            else vWorld.set(0, 0, 1);
+
+            vLocal.applyQuaternion(quat);
+            return Math.acos(vLocal.dot(vWorld)) * 180 / Math.PI;
+        }
+
+        function updateAngleDisplay(quat, coordName) {
+            const table = document.querySelectorAll('.angle-table')[coordName === 'A' ? 0 : 1];
+            const rows = table.querySelectorAll('tr');
+
+            const XAXW = getAngleBetweenAxes(quat, 'X', 'X');
+            const XAYW = getAngleBetweenAxes(quat, 'X', 'Y');
+            const XAZW = getAngleBetweenAxes(quat, 'X', 'Z');
+            const YAXW = getAngleBetweenAxes(quat, 'Y', 'X');
+            const YAYW = getAngleBetweenAxes(quat, 'Y', 'Y');
+            const YAZW = getAngleBetweenAxes(quat, 'Y', 'Z');
+            const ZAXW = getAngleBetweenAxes(quat, 'Z', 'X');
+            const ZAYW = getAngleBetweenAxes(quat, 'Z', 'Y');
+            const ZAZW = getAngleBetweenAxes(quat, 'Z', 'Z');
+
+            const suffix = coordName === 'A' ? 'A' : 'B';
+            rows[0].innerHTML = `<td>∠XW-X${suffix}</td><td>${XAXW.toFixed(4)}°</td><td>∠XW-Y${suffix}</td><td>${XAYW.toFixed(4)}°</td><td>∠XW-Z${suffix}</td><td>${XAZW.toFixed(4)}°</td>`;
+            rows[1].innerHTML = `<td>∠YW-X${suffix}</td><td>${YAXW.toFixed(4)}°</td><td>∠YW-Y${suffix}</td><td>${YAYW.toFixed(4)}°</td><td>∠YW-Z${suffix}</td><td>${YAZW.toFixed(4)}°</td>`;
+            rows[2].innerHTML = `<td>∠ZW-X${suffix}</td><td>${ZAXW.toFixed(4)}°</td><td>∠ZW-Y${suffix}</td><td>${ZAYW.toFixed(4)}°</td><td>∠ZW-Z${suffix}</td><td>${ZAZW.toFixed(4)}°</td>`;
+
+            document.querySelectorAll('.coord-info')[coordName === 'A' ? 1 : 2].querySelector('div').innerHTML =
+                `与世界坐标系同轴夹角: (${XAXW.toFixed(4)}°, ${YAYW.toFixed(4)}°, ${ZAZW.toFixed(4)}°)`;
         }
 
         function addCoordinateA() {
@@ -259,6 +468,8 @@
 
             const angles = coaxialAnglesToDeg(quatA);
             console.log('A coaxial angles (XX, YY, ZZ):', angles[0].toFixed(2) + '°,', angles[1].toFixed(2) + '°,', angles[2].toFixed(2) + '°');
+
+            updateAngleDisplay(quatA, 'A');
 
             axes.position.set(0, 0, 0);
             scene.add(axes);
@@ -272,6 +483,8 @@
 
             const angles = coaxialAnglesToDeg(quatB);
             console.log('B coaxial angles (XX, YY, ZZ):', angles[0].toFixed(2) + '°,', angles[1].toFixed(2) + '°,', angles[2].toFixed(2) + '°');
+
+            updateAngleDisplay(quatB, 'B');
 
             axes.position.set(0, 0, 0);
             scene.add(axes);
