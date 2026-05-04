@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坐标系A分析器 - 3D可视化</title>
+    <style>
+        :root {
+            --bg: #1a1d23;
+            --panel-bg: #21252b;
+            --text: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #5c9ce6;
+            --accent-hover: #7ab8f5;
+            --danger: #e0556a;
+            --success: #5cb878;
+            --warning: #e0b855;
+            --border: #383d48;
+            --input-bg: #2a2e38;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            --radius: 10px;
+            --transition: 0.2s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 左侧面板 */
+        #panel {
+            width: 400px;
+            min-width: 400px;
+            height: 100vh;
+            background: var(--panel-bg);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow);
+            z-index: 10;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px 22px;
+            gap: 16px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 #2a2e38;
+        }
+        #panel::-webkit-scrollbar {
+            width: 5px;
+        }
+        #panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 10px;
+        }
+        #panel::-webkit-scrollbar-track {
+            background: #2a2e38;
+        }
+
+        #panel h1 {
+            font-size: 1.5em;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #fff;
+            text-align: center;
+            margin-bottom: 2px;
+            background: linear-gradient(135deg, #5c9ce6, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        #panel .subtitle {
+            text-align: center;
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            margin-top: -8px;
+            margin-bottom: 4px;
+        }
+
+        .section-title {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            margin-bottom: 2px;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--input-bg);
+            border-radius: var(--radius);
+            padding: 10px 14px;
+            border: 1px solid transparent;
+            transition: border var(--transition);
+        }
+        .input-group:focus-within {
+            border-color: var(--accent);
+        }
+        .input-group label {
+            font-weight: 600;
+            font-size: 0.9em;
+            min-width: 50px;
+            color: #ccc;
+        }
+        .input-group input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 1em;
+            padding: 6px 8px;
+            outline: none;
+            font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+            width: 70px;
+        }
+        .input-group .unit {
+            color: var(--text-secondary);
+            font-size: 0.8em;
+            min-width: 16px;
+        }
+        .input-group input[type="range"] {
+            flex: 2;
+            accent-color: var(--accent);
+            cursor: pointer;
+            padding: 0;
+            height: 6px;
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            letter-spacing: 0.03em;
+            transition: all var(--transition);
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            width: 100%;
+            font-size: 1em;
+            padding: 12px;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(92, 156, 230, 0.35);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--border);
+            color: #ccc;
+            flex: 1;
+        }
+        .btn-outline:hover {
+            border-color: var(--accent);
+            color: #fff;
+            background: rgba(92, 156, 230, 0.08);
+        }
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.78em;
+            border-radius: 6px;
+        }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        #status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.82em;
+            letter-spacing: 0.03em;
+            text-align: center;
+            margin: 0 auto;
+        }
+        .badge-valid {
+            background: rgba(92, 184, 120, 0.2);
+            color: #5cb878;
+            border: 1px solid rgba(92, 184, 120, 0.4);
+        }
+        .badge-invalid {
+            background: rgba(224, 85, 106, 0.2);
+            color: #e0556a;
+            border: 1px solid rgba(224, 85, 106, 0.4);
+        }
+        .badge-unknown {
+            background: rgba(160, 160, 160, 0.15);
+            color: #a0a0a0;
+            border: 1px solid rgba(160, 160, 160, 0.3);
+        }
+
+        #solution-select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--input-bg);
+            color: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.9em;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: border var(--transition);
+        }
+        #solution-select:focus {
+            border-color: var(--accent);
+        }
+        #solution-select option {
+            background: #2a2e38;
+            color: #fff;
+        }
+
+        .vector-display {
+            background: var(--input-bg);
+            border-radius: var(--radius);
+            padding: 12px 14px;
+            font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+            font-size: 0.78em;
+            line-height: 1.6;
+        }
+        .vector-display .vec-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 0;
+        }
+        .vec-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .vec-dot.xa {
+            background: #ff66a0;
+        }
+        .vec-dot.ya {
+            background: #66d9ff;
+        }
+        .vec-dot.za {
+            background: #ffd966;
+        }
+        .vec-label {
+            font-weight: 700;
+            min-width: 22px;
+            color: #ddd;
+        }
+        .vec-values {
+            color: #bbb;
+            word-break: break-all;
+        }
+        .handness-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+        .handness-right {
+            background: rgba(92, 184, 120, 0.2);
+            color: #5cb878;
+        }
+        .handness-left {
+            background: rgba(224, 184, 85, 0.2);
+            color: #e0b855;
+        }
+
+        /* 3D画布容器 */
+        #canvas-container {
+            flex: 1;
+            height: 100vh;
+            position: relative;
+            cursor: grab;
+            background: radial-gradient(ellipse at center, #1e2230 0%, #15171d 100%);
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        #canvas-container canvas {
+            display: block;
+        }
+
+        /* 图例覆盖层 */
+        #legend-overlay {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: rgba(33, 37, 43, 0.9);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 0.78em;
+            pointer-events: none;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            line-height: 1.8;
+        }
+        #legend-overlay .leg-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #legend-overlay .leg-dot {
+            width: 22px;
+            height: 3px;
+            border-radius: 2px;
+        }
+        .leg-dot.xw {
+            background: #ff4444;
+        }
+        .leg-dot.yw {
+            background: #44ff44;
+        }
+        .leg-dot.zw {
+            background: #4488ff;
+        }
+        .leg-dot.xa {
+            background: #ff66a0;
+        }
+        .leg-dot.ya {
+            background: #66d9ff;
+        }
+        .leg-dot.za {
+            background: #ffd966;
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #toast.show {
+            opacity: 1;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            #panel {
+                width: 100%;
+                min-width: 100%;
+                height: auto;
+                max-height: 55vh;
+                padding: 14px 16px;
+                gap: 10px;
+                border-radius: 0 0 16px 16px;
+            }
+            #canvas-container {
+                flex: 1;
+                height: 45vh;
+                min-height: 300px;
+            }
+            #panel h1 {
+                font-size: 1.2em;
+            }
+            .input-group {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 左侧面板 -->
+    <div id="panel">
+        <h1>🔬 坐标系A分析器</h1>
+        <p class="subtitle">根据三轴夹角推导可能的坐标系方向</p>
+
+        <div class="section-title">📐 输入夹角（世界坐标系 ↔ 坐标系A）</div>
+
+        <div class="input-group">
+            <label>∠(Xw, Xa)</label>
+            <input type="range" id="alpha-slider" min="0" max="180" value="45" step="0.1">
+            <input type="number" id="alpha-input" value="45" min="0" max="180" step="0.01">
+            <span class="unit">°</span>
+        </div>
+        <div class="input-group">
+            <label>∠(Yw, Ya)</label>
+            <input type="range" id="beta-slider" min="0" max="180" value="60" step="0.1">
+            <input type="number" id="beta-input" value="60" min="0" max="180" step="0.01">
+            <span class="unit">°</span>
+        </div>
+        <div class="input-group">
+            <label>∠(Zw, Za)</label>
+            <input type="range" id="gamma-slider" min="0" max="180" value="75" step="0.1">
+            <input type="number" id="gamma-input" value="75" min="0" max="180" step="0.01">
+            <span class="unit">°</span>
+        </div>
+
+        <button class="btn btn-primary" id="btn-analyze">🔍 分析坐标系</button>
+
+        <div style="text-align:center;">
+            <span id="status-badge" class="badge-unknown">⏳ 等待分析</span>
+        </div>
+
+        <div class="section-title">🎯 可能的坐标系A方向</div>
+        <select id="solution-select" disabled>
+            <option value="-1">-- 请先分析 --</option>
+        </select>
+        <span style="font-size:0.75em;color:var(--text-secondary);" id="solution-count-text"></span>
+
+        <div class="section-title">📊 所选坐标系A的三轴矢量（在世界系中）</div>
+        <div class="vector-display" id="vector-display">
+            <em style="color:#888;">选择解后在此显示矢量</em>
+        </div>
+
+        <div class="section-title">💾 数据管理</div>
+        <div class="btn-row">
+            <button class="btn btn-outline btn-small" id="btn-save">📥 保存JSON</button>
+            <button class="btn btn-outline btn-small" id="btn-load">📤 加载JSON</button>
+        </div>
+        <input type="file" id="file-input" accept=".json" style="display:none;">
+    </div>
+
+    <!-- 3D画布 -->
+    <div id="canvas-container">
+        <div id="legend-overlay">
+            <div style="font-weight:700;margin-bottom:4px;">图例</div>
+            <div class="leg-item"><span class="leg-dot xw"></span> 世界 X<sub>w</sub></div>
+            <div class="leg-item"><span class="leg-dot yw"></span> 世界 Y<sub>w</sub></div>
+            <div class="leg-item"><span class="leg-dot zw"></span> 世界 Z<sub>w</sub></div>
+            <div style="margin-top:4px;color:#ff66a0;">―</div>
+            <div class="leg-item"><span class="leg-dot xa"></span> A系 X<sub>a</sub></div>
+            <div class="leg-item"><span class="leg-dot ya"></span> A系 Y<sub>a</sub></div>
+            <div class="leg-item"><span class="leg-dot za"></span> A系 Z<sub>a</sub></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ============ DOM 元素 ============
+        const alphaSlider = document.getElementById('alpha-slider');
+        const alphaInput = document.getElementById('alpha-input');
+        const betaSlider = document.getElementById('beta-slider');
+        const betaInput = document.getElementById('beta-input');
+        const gammaSlider = document.getElementById('gamma-slider');
+        const gammaInput = document.getElementById('gamma-input');
+        const btnAnalyze = document.getElementById('btn-analyze');
+        const statusBadge = document.getElementById('status-badge');
+        const solutionSelect = document.getElementById('solution-select');
+        const solutionCountText = document.getElementById('solution-count-text');
+        const vectorDisplay = document.getElementById('vector-display');
+        const btnSave = document.getElementById('btn-save');
+        const btnLoad = document.getElementById('btn-load');
+        const fileInput = document.getElementById('file-input');
+        const toastEl = document.getElementById('toast');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        // ============ 全局状态 ============
+        let allSolutions = []; // 所有解，每个解 {XA, YA, ZA, handness}
+        let selectedSolutionIndex = -1;
+        let currentAlpha = 45,
+            currentBeta = 60,
+            currentGamma = 75;
+
+        // ============ Three.js 初始化 ============
+        const scene = new THREE.Scene();
+
+        // 渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        canvasContainer.appendChild(renderer.domElement);
+
+        // 相机
+        const camera = new THREE.PerspectiveCamera(48, 2, 0.3, 30);
+        camera.position.set(4.5, 3.2, 5.5);
+        camera.lookAt(0.8, 0.7, 0.6);
+
+        // OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0.85, 0.7, 0.6);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.12;
+        controls.minDistance = 2;
+        controls.maxDistance = 14;
+        controls.maxPolarAngle = Math.PI;
+        controls.update();
+
+        // 光照
+        const ambientLight = new THREE.AmbientLight(0x404060, 3);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 4);
+        directionalLight.position.set(8, 14, 6);
+        scene.add(directionalLight);
+        const fillLight = new THREE.DirectionalLight(0x8899cc, 1.5);
+        fillLight.position.set(-4, -1, -2);
+        scene.add(fillLight);
+
+        // 网格地面
+        const gridHelper = new THREE.GridHelper(8, 20, 0x333355, 0x222233);
+        scene.add(gridHelper);
+
+        // 原点球
+        const originSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.08, 32, 32),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x444444, roughness: 0.3 })
+        );
+        scene.add(originSphere);
+
+        // 世界坐标系轴组
+        const worldAxesGroup = new THREE.Group();
+        scene.add(worldAxesGroup);
+
+        // A坐标系轴组
+        const aAxesGroup = new THREE.Group();
+        scene.add(aAxesGroup);
+
+        // 标签sprites组
+        const labelsGroup = new THREE.Group();
+        scene.add(labelsGroup);
+
+        /**
+         * 创建箭头mesh（杆+锥）
+         */
+        function createArrowMesh(direction, length, color, shaftRadius = 0.04, headRadius = 0.1, headLength = 0.25) {
+            const group = new THREE.Group();
+            const dir = direction.clone().normalize();
+
+            // 杆
+            const shaftLength = length - headLength;
+            const shaftGeom = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftLength, 24);
+            const shaftMat = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.2, emissive: new THREE
+                    .Color(color).multiplyScalar(0.25) });
+            const shaft = new THREE.Mesh(shaftGeom, shaftMat);
+            shaft.position.y = shaftLength / 2;
+            group.add(shaft);
+
+            // 锥形头部
+            const headGeom = new THREE.ConeGeometry(headRadius, headLength, 24);
+            const headMat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.25, emissive: new THREE.Color(
+                    color).multiplyScalar(0.3) });
+            const head = new THREE.Mesh(headGeom, headMat);
+            head.position.y = shaftLength + headLength / 2;
+            group.add(head);
+
+            // 让group的+y轴对齐到direction
+            const quaternion = new THREE.Quaternion();
+            const up = new THREE.Vector3(0, 1, 0);
+            quaternion.setFromUnitVectors(up, dir);
+            group.setRotationFromQuaternion(quaternion);
+
+            return group;
+        }
+
+        /**
+         * 创建文字标签sprite
+         */
+        function createLabelSprite(text, position, color = '#ffffff') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.font = 'bold 32px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 64, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false,
+                depthWrite: false });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.copy(position);
+            sprite.scale.set(0.7, 0.35, 1);
+            return sprite;
+        }
+
+        /**
+         * 构建世界坐标系可视化
+         */
+        function buildWorldAxes() {
+            // 清除旧内容
+            while (worldAxesGroup.children.length > 0) worldAxesGroup.remove(worldAxesGroup.children[0]);
+            while (labelsGroup.children.length > 0) labelsGroup.remove(labelsGroup.children[0]);
+
+            const axisLength = 2.5;
+            const colors = { x: 0xff4444, y: 0x44ff44, z: 0x4488ff };
+            const dirs = {
+                x: new THREE.Vector3(1, 0, 0),
+                y: new THREE.Vector3(0, 1, 0),
+                z: new THREE.Vector3(0, 0, 1),
+            };
+            const labels = { x: 'Xw', y: 'Yw', z: 'Zw' };
+            const labelColors = { x: '#ff6666', y: '#66ff66', z: '#6699ff' };
+
+            for (const axis of ['x', 'y', 'z']) {
+                const arrow = createArrowMesh(dirs[axis], axisLength, colors[axis], 0.045, 0.11, 0.28);
+                worldAxesGroup.add(arrow);
+                const labelPos = dirs[axis].clone().multiplyScalar(axisLength + 0.35);
+                const sprite = createLabelSprite(labels[axis], labelPos, labelColors[axis]);
+                labelsGroup.add(sprite);
+            }
+        }
+
+        /**
+         * 构建坐标系A可视化
+         */
+        function buildAAxes(xaVec, yaVec, zaVec) {
+            while (aAxesGroup.children.length > 0) aAxesGroup.remove(aAxesGroup.children[0]);
+
+            const axisLength = 2.2;
+            const colors = { xa: 0xff4488, ya: 0x44ddff, za: 0xffcc44 };
+            const vecs = { xa: xaVec.clone().normalize(), ya: yaVec.clone().normalize(), za: zaVec.clone().normalize() };
+
+            for (const key of ['xa', 'ya', 'za']) {
+                const arrow = createArrowMesh(vecs[key], axisLength, colors[key], 0.04, 0.10, 0.26);
+                aAxesGroup.add(arrow);
+                // 标签
+                const labelPos = vecs[key].clone().multiplyScalar(axisLength + 0.35);
+                const labelText = key.toUpperCase().replace('A', 'a');
+                const labelColor = key === 'xa' ? '#ff88aa' : key === 'ya' ? '#88eeff' : '#ffdd88';
+                const sprite = createLabelSprite(labelText, labelPos, labelColor);
+                labelsGroup.add(sprite);
+            }
+        }
+
+        /**
+         * 清除A系可视化
+         */
+        function clearAAxes() {
+            while (aAxesGroup.children.length > 0) aAxesGroup.remove(aAxesGroup.children[0]);
+            // 也清除A系标签（简单处理：重建所有标签）
+            while (labelsGroup.children.length > 0) labelsGroup.remove(labelsGroup.children[0]);
+            buildWorldAxes(); // 重新构建世界标签
+        }
+
+        // ============ 数学求解 ============
+        /**
+         * 求解坐标系A的所有可能方向
+         * @param {number} alphaDeg - ∠(Xw, Xa) 度数
+         * @param {number} betaDeg  - ∠(Yw, Ya) 度数
+         * @param {number} gammaDeg - ∠(Zw, Za) 度数
+         * @returns {Array} 解列表
+         */
+        function solveCoordinateSystemA(alphaDeg, betaDeg, gammaDeg) {
+            const alpha = THREE.MathUtils.degToRad(alphaDeg);
+            const beta = THREE.MathUtils.degToRad(betaDeg);
+            const gamma = THREE.MathUtils.degToRad(gammaDeg);
+
+            const cosAlpha = Math.cos(alpha);
+            const sinAlpha = Math.sin(alpha);
+            const cosBeta = Math.cos(beta);
+            const sinBeta = Math.sin(beta);
+            const cosGamma = Math.cos(gamma);
+
+            const solutions = [];
+            const epsilon = 0.0008; // 容差（约0.05°）
+            const sampleStep = 0.4; // 采样步长（度转弧度约0.007 rad，约0.4°）
+
+            // 对θx采样
+            const numSamples = Math.ceil(2 * Math.PI / sampleStep);
+            const sampleStepActual = 2 * Math.PI / numSamples;
+
+            for (let i = 0; i < numSamples; i++) {
+                const thetaX = i * sampleStepActual;
+
+                // XA = (cosα, sinα·cosθx, sinα·sinθx)
+                const xa_x = cosAlpha;
+                const xa_y = sinAlpha * Math.cos(thetaX);
+                const xa_z = sinAlpha * Math.sin(thetaX);
+                const XA = new THREE.Vector3(xa_x, xa_y, xa_z);
+
+                // 求解θy：方程 A*cos(θy) + B*sin(θy) = C
+                // 其中 A=cosα*sinβ, B=sinα*sinβ*sinθx, C=-sinα*cosθx*cosβ
+                const A = cosAlpha * sinBeta;
+                const B = sinAlpha * sinBeta * Math.sin(thetaX);
+                const C = -sinAlpha * Math.cos(thetaX) * cosBeta;
+
+                const R = Math.sqrt(A * A + B * B);
+                if (R < 1e-12) continue; // 无解或退化
+                if (Math.abs(C) > R + epsilon) continue; // 无解
+
+                // 计算θy的两个可能值
+                const phi = Math.atan2(B, A);
+                const acosArg = Math.max(-1, Math.min(1, C / R));
+                const delta = Math.acos(acosArg);
+
+                const thetaY_candidates = [phi + delta, phi - delta];
+
+                for (const thetaY of thetaY_candidates) {
+                    // YA = (sinβ·cosθy, cosβ, sinβ·sinθy)
+                    const ya_x = sinBeta * Math.cos(thetaY);
+                    const ya_y = cosBeta;
+                    const ya_z = sinBeta * Math.sin(thetaY);
+                    const YA = new THREE.Vector3(ya_x, ya_y, ya_z);
+
+                    // 验证XA⊥YA
+                    const dotXY = XA.dot(YA);
+                    if (Math.abs(dotXY) > epsilon) continue;
+
+                    // ZA_candidate = XA × YA（归一化）
+                    const ZA_candidate = new THREE.Vector3().crossVectors(XA, YA).normalize();
+
+                    // 检查ZA与ZW的夹角
+                    const za_z = ZA_candidate.z;
+                    if (Math.abs(za_z - cosGamma) < epsilon) {
+                        // 找到一个解（右手系如果XA×YA·ZA>0，这里ZA就是XA×YA所以点积=1）
+                        const handness = new THREE.Vector3().crossVectors(XA, YA).dot(ZA_candidate) > 0 ? '右手系' :
+                            '左手系';
+                        addSolutionIfUnique(solutions, XA.clone(), YA.clone(), ZA_candidate.clone(), handness, epsilon);
+                    }
+
+                    // 也检查-ZA
+                    if (Math.abs(-za_z - cosGamma) < epsilon) {
+                        const ZA_neg = ZA_candidate.clone().multiplyScalar(-1);
+                        const handness = new THREE.Vector3().crossVectors(XA, YA).dot(ZA_neg) > 0 ? '右手系' : '左手系';
+                        addSolutionIfUnique(solutions, XA.clone(), YA.clone(), ZA_neg, handness, epsilon);
+                    }
+                }
+            }
+
+            // 后处理：合并非常接近的解
+            return mergeCloseSolutions(solutions, 0.015);
+        }
+
+        function addSolutionIfUnique(solutions, XA, YA, ZA, handness, epsilon) {
+            // 检查是否与已有解重复
+            for (const sol of solutions) {
+                const dX = 1 - Math.abs(XA.dot(sol.XA));
+                const dY = 1 - Math.abs(YA.dot(sol.YA));
+                const dZ = 1 - Math.abs(ZA.dot(sol.ZA));
+                if (dX < epsilon * 2 && dY < epsilon * 2 && dZ < epsilon * 2) return;
+            }
+            solutions.push({ XA, YA, ZA, handness });
+        }
+
+        function mergeCloseSolutions(solutions, threshold) {
+            if (solutions.length <= 1) return solutions;
+            const merged = [];
+            const used = new Set();
+            for (let i = 0; i < solutions.length; i++) {
+                if (used.has(i)) continue;
+                let cluster = [solutions[i]];
+                used.add(i);
+                for (let j = i + 1; j < solutions.length; j++) {
+                    if (used.has(j)) continue;
+                    const dX = 1 - Math.abs(solutions[i].XA.dot(solutions[j].XA));
+                    const dY = 1 - Math.abs(solutions[i].YA.dot(solutions[j].YA));
+                    const dZ = 1 - Math.abs(solutions[i].ZA.dot(solutions[j].ZA));
+                    if (dX < threshold && dY < threshold && dZ < threshold) {
+                        cluster.push(solutions[j]);
+                        used.add(j);
+                    }
+                }
+                // 取平均
+                const avgXA = new THREE.Vector3();
+                const avgYA = new THREE.Vector3();
+                const avgZA = new THREE.Vector3();
+                for (const s of cluster) {
+                    avgXA.add(s.XA);
+                    avgYA.add(s.YA);
+                    avgZA.add(s.ZA);
+                }
+                avgXA.normalize();
+                avgYA.normalize();
+                avgZA.normalize();
+                // 重新计算手性
+                const crossVal = new THREE.Vector3().crossVectors(avgXA, avgYA).dot(avgZA);
+                const handness = crossVal > 0.01 ? '右手系' : crossVal < -0.01 ? '左手系' : '近似退化';
+                merged.push({ XA: avgXA, YA: avgYA, ZA: avgZA, handness });
+            }
+            return merged;
+        }
+
+        // ============ UI更新 ============
+        function updateStatusBadge(valid, count) {
+            statusBadge.classList.remove('badge-valid', 'badge-invalid', 'badge-unknown');
+            if (count < 0) {
+                statusBadge.classList.add('badge-unknown');
+                statusBadge.textContent = '⏳ 等待分析';
+            } else if (valid && count > 0) {
+                statusBadge.classList.add('badge-valid');
+                statusBadge.textContent = `✅ 存在 (${count} 种方向组合)`;
+            } else if (valid && count === 0) {
+                statusBadge.classList.add('badge-invalid');
+                statusBadge.textContent = '❌ 不存在满足条件的正交坐标系';
+            } else {
+                statusBadge.classList.add('badge-invalid');
+                statusBadge.textContent = '❌ 不存在';
+            }
+        }
+
+        function updateSolutionSelect() {
+            solutionSelect.innerHTML = '';
+            if (allSolutions.length === 0) {
+                solutionSelect.innerHTML = '<option value="-1">-- 无可用解 --</option>';
+                solutionSelect.disabled = true;
+                solutionCountText.textContent = '';
+            } else {
+                for (let i = 0; i < allSolutions.length; i++) {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = `解 #${i + 1} (${allSolutions[i].handness})`;
+                    solutionSelect.appendChild(opt);
+                }
+                solutionSelect.disabled = false;
+                solutionSelect.value = '0';
+                solutionCountText.textContent = `共 ${allSolutions.length} 种可能的方向组合`;
+            }
+        }
+
+        function updateVectorDisplay(solution) {
+            if (!solution) {
+                vectorDisplay.innerHTML = '<em style="color:#888;">选择解后在此显示矢量</em>';
+                return;
+            }
+            const { XA, YA, ZA, handness } = solution;
+            const handnessClass = handness.includes('右手') ? 'handness-right' : 'handness-left';
+            vectorDisplay.innerHTML = `
+                <div class="vec-line"><span class="vec-dot xa"></span><span class="vec-label">Xa</span><span class="vec-values">(${XA.x.toFixed(6)}, ${XA.y.toFixed(6)}, ${XA.z.toFixed(6)})</span></div>
+                <div class="vec-line"><span class="vec-dot ya"></span><span class="vec-label">Ya</span><span class="vec-values">(${YA.x.toFixed(6)}, ${YA.y.toFixed(6)}, ${YA.z.toFixed(6)})</span></div>
+                <div class="vec-line"><span class="vec-dot za"></span><span class="vec-label">Za</span><span class="vec-values">(${ZA.x.toFixed(6)}, ${ZA.y.toFixed(6)}, ${ZA.z.toFixed(6)})</span></div>
+                <div style="margin-top:4px;">手性: <span class="handness-tag ${handnessClass}">${handness}</span></div>
+                <div style="font-size:0.7em;color:#888;margin-top:2px;">（矢量分量在世界坐标系W中表示）</div>
+            `;
+        }
+
+        function update3DView(solution) {
+            // 清除A系旧内容
+            while (aAxesGroup.children.length > 0) aAxesGroup.remove(aAxesGroup.children[0]);
+            while (labelsGroup.children.length > 0) labelsGroup.remove(labelsGroup.children[0]);
+            buildWorldAxes(); // 重建世界标签
+
+            if (solution) {
+                buildAAxes(solution.XA, solution.YA, solution.ZA);
+            }
+        }
+
+        // ============ 主要操作 ============
+        function performAnalysis() {
+            const alpha = parseFloat(alphaInput.value);
+            const beta = parseFloat(betaInput.value);
+            const gamma = parseFloat(gammaInput.value);
+
+            if (isNaN(alpha) || isNaN(beta) || isNaN(gamma)) {
+                showToast('⚠️ 请输入有效的角度值');
+                return;
+            }
+            if (alpha < 0 || alpha > 180 || beta < 0 || beta > 180 || gamma < 0 || gamma > 180) {
+                showToast('⚠️ 角度必须在0°到180°之间');
+                return;
+            }
+
+            currentAlpha = alpha;
+            currentBeta = beta;
+            currentGamma = gamma;
+
+            allSolutions = solveCoordinateSystemA(alpha, beta, gamma);
+            const exists = allSolutions.length > 0;
+            updateStatusBadge(exists, allSolutions.length);
+            updateSolutionSelect();
+
+            if (allSolutions.length > 0) {
+                selectedSolutionIndex = 0;
+                solutionSelect.value = '0';
+                const sol = allSolutions[0];
+                updateVectorDisplay(sol);
+                update3DView(sol);
+                showToast(`✅ 找到 ${allSolutions.length} 种可能的坐标系A方向`);
+            } else {
+                selectedSolutionIndex = -1;
+                updateVectorDisplay(null);
+                clearAAxes();
+                showToast('❌ 未找到满足条件的正交坐标系');
+            }
+        }
+
+        function selectSolution(index) {
+            if (index < 0 || index >= allSolutions.length) {
+                selectedSolutionIndex = -1;
+                updateVectorDisplay(null);
+                clearAAxes();
+                return;
+            }
+            selectedSolutionIndex = index;
+            const sol = allSolutions[index];
+            updateVectorDisplay(sol);
+            update3DView(sol);
+        }
+
+        // ============ JSON保存/加载 ============
+        function saveToJSON() {
+            if (allSolutions.length === 0) {
+                showToast('⚠️ 请先分析坐标系再保存');
+                return;
+            }
+            const data = {
+                version: '1.0',
+                timestamp: new Date().toISOString(),
+                angles: {
+                    alpha_deg: currentAlpha,
+                    beta_deg: currentBeta,
+                    gamma_deg: currentGamma,
+                },
+                selectedSolutionIndex: selectedSolutionIndex >= 0 ? selectedSolutionIndex : 0,
+                totalSolutions: allSolutions.length,
+                solutions: allSolutions.map(s => ({
+                    XA: { x: s.XA.x, y: s.XA.y, z: s.XA.z },
+                    YA: { x: s.YA.x, y: s.YA.y, z: s.YA.z },
+                    ZA: { x: s.ZA.x, y: s.ZA.y, z: s.ZA.z },
+                    handness: s.handness,
+                })),
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `坐标系A_α${currentAlpha.toFixed(1)}_β${currentBeta.toFixed(1)}_γ${currentGamma.toFixed(1)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('💾 JSON文件已下载');
+        }
+
+        function loadFromJSON(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!data.angles || data.angles.alpha_deg === undefined ||
+                        data.angles.beta_deg === undefined || data.angles.gamma_deg === undefined) {
+                        throw new Error('JSON格式不正确');
+                    }
+                    const alpha = data.angles.alpha_deg;
+                    const beta = data.angles.beta_deg;
+                    const gamma = data.angles.gamma_deg;
+
+                    // 更新输入
+                    alphaSlider.value = alpha;
+                    alphaInput.value = alpha;
+                    betaSlider.value = beta;
+                    betaInput.value = beta;
+                    gammaSlider.value = gamma;
+                    gammaInput.value = gamma;
+                    currentAlpha = alpha;
+                    currentBeta = beta;
+                    currentGamma = gamma;
+
+                    // 重新求解
+                    allSolutions = solveCoordinateSystemA(alpha, beta, gamma);
+                    updateStatusBadge(allSolutions.length > 0, allSolutions.length);
+                    updateSolutionSelect();
+
+                    const selIndex = (data.selectedSolutionIndex !== undefined &&
+                        data.selectedSolutionIndex >= 0 &&
+                        data.selectedSolutionIndex < allSolutions.length) ?
+                        data.selectedSolutionIndex :
+                        (allSolutions.length > 0 ? 0 : -1);
+
+                    if (selIndex >= 0 && allSolutions.length > 0) {
+                        solutionSelect.value = selIndex;
+                        selectedSolutionIndex = selIndex;
+                        updateVectorDisplay(allSolutions[selIndex]);
+                        update3DView(allSolutions[selIndex]);
+                    } else {
+                        selectedSolutionIndex = -1;
+                        updateVectorDisplay(null);
+                        clearAAxes();
+                    }
+                    showToast(`📤 已加载: α=${alpha.toFixed(1)}°, β=${beta.toFixed(1)}°, γ=${gamma.toFixed(1)}°`);
+                } catch (err) {
+                    showToast('❌ JSON解析失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ============ Toast ============
+        function showToast(message, duration = 2200) {
+            toastEl.textContent = message;
+            toastEl.classList.add('show');
+            clearTimeout(toastEl._timeout);
+            toastEl._timeout = setTimeout(() => {
+                toastEl.classList.remove('show');
+            }, duration);
+        }
+
+        // ============ 事件监听 ============
+        // 滑块与输入框同步
+        function syncInputs(slider, input, setter) {
+            slider.addEventListener('input', () => {
+                input.value = parseFloat(slider.value).toFixed(2);
+                if (setter) setter(parseFloat(slider.value));
+            });
+            input.addEventListener('change', () => {
+                let val = parseFloat(input.value);
+                if (isNaN(val)) val = 0;
+                val = Math.max(0, Math.min(180, val));
+                input.value = val;
+                slider.value = val;
+                if (setter) setter(val);
+            });
+        }
+        syncInputs(alphaSlider, alphaInput, (v) => { currentAlpha = v; });
+        syncInputs(betaSlider, betaInput, (v) => { currentBeta = v; });
+        syncInputs(gammaSlider, gammaInput, (v) => { currentGamma = v; });
+
+        btnAnalyze.addEventListener('click', performAnalysis);
+        solutionSelect.addEventListener('change', () => {
+            const idx = parseInt(solutionSelect.value);
+            selectSolution(idx);
+        });
+        btnSave.addEventListener('click', saveToJSON);
+        btnLoad.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                loadFromJSON(e.target.files[0]);
+                fileInput.value = '';
+            }
+        });
+
+        // 键盘快捷键
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && document.activeElement && document.activeElement.closest('#panel')) {
+                performAnalysis();
+            }
+            if (e.key === 'ArrowUp' && solutionSelect.disabled === false && document.activeElement !== solutionSelect) {
+                e.preventDefault();
+                const idx = parseInt(solutionSelect.value);
+                if (idx > 0) {
+                    solutionSelect.value = idx - 1;
+                    selectSolution(idx - 1);
+                }
+            }
+            if (e.key === 'ArrowDown' && solutionSelect.disabled === false && document.activeElement !== solutionSelect) {
+                e.preventDefault();
+                const idx = parseInt(solutionSelect.value);
+                if (idx < allSolutions.length - 1) {
+                    solutionSelect.value = idx + 1;
+                    selectSolution(idx + 1);
+                }
+            }
+        });
+
+        // 响应式调整
+        function resizeRenderer() {
+            const rect = canvasContainer.getBoundingClientRect();
+            renderer.setSize(rect.width, rect.height);
+            camera.aspect = rect.width / Math.max(rect.height, 1);
+            camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', resizeRenderer);
+        resizeRenderer();
+
+        // ============ 渲染循环 ============
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // ============ 初始化 ============
+        function init() {
+            buildWorldAxes();
+            updateStatusBadge(false, -1);
+            // 默认执行一次分析
+            currentAlpha = parseFloat(alphaInput.value);
+            currentBeta = parseFloat(betaInput.value);
+            currentGamma = parseFloat(gammaInput.value);
+            performAnalysis();
+        }
+
+        init();
+        animate();
+
+        console.log('🔬 坐标系A分析器已就绪');
+        console.log('   - 输入三个夹角，判断坐标系A是否存在');
+        console.log('   - 搜索所有可能的三轴方向组合');
+        console.log('   - 3D可视化世界坐标系与坐标系A');
+        console.log('   - 支持JSON保存/加载');
+        console.log('   - 鼠标拖拽旋转，滚轮缩放，右键平移');
+        console.log('   - 键盘↑↓切换解，Enter分析');
+    </script>
+</body>
+</html>
