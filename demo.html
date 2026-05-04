@@ -154,13 +154,34 @@
             animate();
         }
 
+        function createAxisLabel(text, position, color) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 64;
+            canvas.height = 32;
+
+            context.font = 'bold 18px Arial';
+            context.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 32, 16);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.copy(position);
+            sprite.scale.set(0.35, 0.18, 1);
+            return sprite;
+        }
+
         function createAxes(size = 1, colorOffset = 0x000000, coordId) {
             const group = new THREE.Group();
             const colors = [0xff0000 + colorOffset, 0x00ff00 + colorOffset, 0x0000ff + colorOffset];
+            const labelSuffix = coordId === 'world' ? 'W' : coordId;
             const axisData = [
-                { dir: new THREE.Vector3(1, 0, 0), color: colors[0], label: 'X' },
-                { dir: new THREE.Vector3(0, 1, 0), color: colors[1], label: 'Y' },
-                { dir: new THREE.Vector3(0, 0, 1), color: colors[2], label: 'Z' }
+                { dir: new THREE.Vector3(1, 0, 0), color: colors[0], label: 'X' + labelSuffix },
+                { dir: new THREE.Vector3(0, 1, 0), color: colors[1], label: 'Y' + labelSuffix },
+                { dir: new THREE.Vector3(0, 0, 1), color: colors[2], label: 'Z' + labelSuffix }
             ];
 
             group.coordId = coordId;
@@ -181,6 +202,10 @@
                 arrow.position.copy(axis.dir.clone().multiplyScalar(size));
                 arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.dir);
                 group.add(arrow);
+
+                const labelPos = axis.dir.clone().multiplyScalar(size + 0.15);
+                const label = createAxisLabel(axis.label, labelPos, axis.color);
+                group.add(label);
             });
 
             const sphereGeom = new THREE.SphereGeometry(0.08, 8, 8);
@@ -195,8 +220,6 @@
             const axes = createAxes(1.5, 0x000000, 'world');
             coordinateSystems['world'] = axes;
             scene.add(axes);
-
-            addLabel('W', 0, 0.2, 0, 0x888888);
         }
 
         function addCoordinateA() {
@@ -209,8 +232,6 @@
 
             axes.position.set(0, 0, 0);
             scene.add(axes);
-
-            addLabel('A', 0, 0, 0, 0xe74c3c);
         }
 
         function addCoordinateB() {
@@ -223,8 +244,6 @@
 
             axes.position.set(0, 0, 0);
             scene.add(axes);
-
-            addLabel('B', 0, 0, 0, 0x3498db);
         }
 
         function addRotationAxisHelper() {
@@ -245,26 +264,6 @@
             scene.add(axis2Line);
         }
 
-        function addLabel(text, x, y, z, color) {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = 64;
-            canvas.height = 32;
-
-            context.fillStyle = 'rgba(255,255,255,0.8)';
-            context.fillRect(0, 0, 64, 32);
-            context.font = 'bold 20px Arial';
-            context.fillStyle = '#' + color.toString(16).padStart(6, '0');
-            context.textAlign = 'center';
-            context.fillText(text, 32, 24);
-
-            const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
-            const sprite = new THREE.Sprite(material);
-            sprite.position.set(x, y + 0.3, z);
-            sprite.scale.set(0.5, 0.25, 1);
-            scene.add(sprite);
-        }
 
         function selectCoordinate(coordId) {
             unhighlightAll();
